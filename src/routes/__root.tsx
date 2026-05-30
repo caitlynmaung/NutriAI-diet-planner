@@ -81,6 +81,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Personalized diet planner with calorie and macro tracking." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { property: "og:title", content: "NourishPlan" },
+      { name: "twitter:title", content: "NourishPlan" },
+      { property: "og:description", content: "Personalized diet planner with calorie and macro tracking." },
+      { name: "twitter:description", content: "Personalized diet planner with calorie and macro tracking." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7239e1f0-c05f-41dd-bab9-426f6a746a1b/id-preview-cc9a870d--02e382b9-58f3-4bfd-94f6-3ed807b5e0bb.lovable.app-1780160330417.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7239e1f0-c05f-41dd-bab9-426f6a746a1b/id-preview-cc9a870d--02e382b9-58f3-4bfd-94f6-3ed807b5e0bb.lovable.app-1780160330417.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
