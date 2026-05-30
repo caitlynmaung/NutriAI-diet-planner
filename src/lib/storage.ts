@@ -44,7 +44,14 @@ export function useProfile() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setProfileState(read<Profile | null>(PROFILE_KEY, null));
+    const stored = read<Profile | null>(PROFILE_KEY, null);
+    if (stored) {
+      // backfill defaults for older profiles missing the health fields
+      stored.diet = stored.diet ?? "omnivore";
+      stored.allergens = stored.allergens ?? [];
+      stored.conditions = stored.conditions ?? [];
+    }
+    setProfileState(stored);
     setLoaded(true);
   }, []);
 
