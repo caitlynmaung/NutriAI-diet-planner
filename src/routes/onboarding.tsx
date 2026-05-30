@@ -7,6 +7,7 @@ import { Leaf, ArrowRight, ArrowLeft } from "lucide-react";
 import { useProfile } from "@/lib/storage";
 import {
   ACTIVITY_LABEL,
+  DIET_LABEL,
   GOAL_LABEL,
   calculateTargets,
   type ActivityLevel,
@@ -14,6 +15,13 @@ import {
   type Profile,
   type Sex,
 } from "@/lib/nutrition";
+import {
+  ALLERGEN_LABEL,
+  CONDITION_LABEL,
+  type Allergen,
+  type Condition,
+  type DietTag,
+} from "@/lib/foods";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
@@ -33,6 +41,9 @@ type FormState = {
   weightKg: string;
   activity: ActivityLevel;
   goal: Goal;
+  diet: DietTag;
+  allergens: Allergen[];
+  conditions: Condition[];
 };
 
 const initial: FormState = {
@@ -43,7 +54,14 @@ const initial: FormState = {
   weightKg: "",
   activity: "moderate",
   goal: "maintain",
+  diet: "omnivore",
+  allergens: [],
+  conditions: [],
 };
+
+const ALLERGENS = Object.keys(ALLERGEN_LABEL) as Allergen[];
+const CONDITIONS = Object.keys(CONDITION_LABEL) as Exclude<Condition, "none">[];
+const DIETS = Object.keys(DIET_LABEL) as DietTag[];
 
 function Onboarding() {
   const navigate = useNavigate();
@@ -54,11 +72,13 @@ function Onboarding() {
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  const toggle = <T extends string>(arr: T[], v: T): T[] =>
+    arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+
   const canNext = (() => {
     if (step === 0) return form.name.trim().length > 0;
     if (step === 1) return !!form.sex && parseInt(form.age) > 0;
-    if (step === 2)
-      return parseFloat(form.heightCm) > 0 && parseFloat(form.weightKg) > 0;
+    if (step === 2) return parseFloat(form.heightCm) > 0 && parseFloat(form.weightKg) > 0;
     return true;
   })();
 
@@ -71,6 +91,9 @@ function Onboarding() {
       weightKg: parseFloat(form.weightKg),
       activity: form.activity,
       goal: form.goal,
+      diet: form.diet,
+      allergens: form.allergens,
+      conditions: form.conditions,
     };
     setProfile(profile);
     navigate({ to: "/dashboard" });
@@ -79,15 +102,14 @@ function Onboarding() {
   const preview =
     form.age && form.heightCm && form.weightKg
       ? calculateTargets({
-          name: form.name,
-          sex: form.sex,
+          ...form,
           age: parseInt(form.age),
           heightCm: parseFloat(form.heightCm),
           weightKg: parseFloat(form.weightKg),
-          activity: form.activity,
-          goal: form.goal,
         })
       : null;
+
+  const totalSteps = 5;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-soft via-background to-background">
@@ -98,7 +120,7 @@ function Onboarding() {
         </div>
 
         <div className="mb-8 flex gap-1.5">
-          {[0, 1, 2, 3].map((i) => (
+          {Array.from({ length: totalSteps }).map((_, i) => (
             <div
               key={i}
               className={`h-1.5 flex-1 rounded-full transition-colors ${
@@ -119,14 +141,8 @@ function Onboarding() {
               </div>
               <div>
                 <Label htmlFor="name">What should we call you?</Label>
-                <Input
-                  id="name"
-                  className="mt-2"
-                  placeholder="Your name"
-                  value={form.name}
-                  onChange={(e) => update("name", e.target.value)}
-                  autoFocus
-                />
+                <Input id="name" className="mt-2" placeholder="Your name"
+                  value={form.name} onChange={(e) => update("name", e.target.value)} autoFocus />
               </div>
             </div>
           )}
@@ -138,32 +154,17 @@ function Onboarding() {
                 <Label>Sex</Label>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {(["male", "female"] as Sex[]).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => update("sex", s)}
+                    <button key={s} onClick={() => update("sex", s)}
                       className={`rounded-xl border px-4 py-3 text-sm font-medium capitalize transition ${
-                        form.sex === s
-                          ? "border-primary bg-primary-soft text-primary"
-                          : "hover:border-primary/40"
-                      }`}
-                    >
-                      {s}
-                    </button>
+                        form.sex === s ? "border-primary bg-primary-soft text-primary" : "hover:border-primary/40"
+                      }`}>{s}</button>
                   ))}
                 </div>
               </div>
               <div>
                 <Label htmlFor="age">Age</Label>
-                <Input
-                  id="age"
-                  className="mt-2"
-                  type="number"
-                  min="10"
-                  max="100"
-                  placeholder="e.g. 28"
-                  value={form.age}
-                  onChange={(e) => update("age", e.target.value)}
-                />
+                <Input id="age" className="mt-2" type="number" min="10" max="100" placeholder="e.g. 28"
+                  value={form.age} onChange={(e) => update("age", e.target.value)} />
               </div>
             </div>
           )}
@@ -174,48 +175,23 @@ function Onboarding() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="height">Height (cm)</Label>
-                  <Input
-                    id="height"
-                    className="mt-2"
-                    type="number"
-                    placeholder="175"
-                    value={form.heightCm}
-                    onChange={(e) => update("heightCm", e.target.value)}
-                  />
+                  <Input id="height" className="mt-2" type="number" placeholder="175"
+                    value={form.heightCm} onChange={(e) => update("heightCm", e.target.value)} />
                 </div>
                 <div>
                   <Label htmlFor="weight">Weight (kg)</Label>
-                  <Input
-                    id="weight"
-                    className="mt-2"
-                    type="number"
-                    placeholder="70"
-                    value={form.weightKg}
-                    onChange={(e) => update("weightKg", e.target.value)}
-                  />
+                  <Input id="weight" className="mt-2" type="number" placeholder="70"
+                    value={form.weightKg} onChange={(e) => update("weightKg", e.target.value)} />
                 </div>
               </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <h1 className="font-display text-3xl font-bold">Lifestyle &amp; goal</h1>
               <div>
                 <Label>Activity level</Label>
                 <div className="mt-2 space-y-2">
                   {(Object.keys(ACTIVITY_LABEL) as ActivityLevel[]).map((a) => (
-                    <button
-                      key={a}
-                      onClick={() => update("activity", a)}
+                    <button key={a} onClick={() => update("activity", a)}
                       className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition ${
-                        form.activity === a
-                          ? "border-primary bg-primary-soft text-primary font-medium"
-                          : "hover:border-primary/40"
-                      }`}
-                    >
-                      {ACTIVITY_LABEL[a]}
-                    </button>
+                        form.activity === a ? "border-primary bg-primary-soft text-primary font-medium" : "hover:border-primary/40"
+                      }`}>{ACTIVITY_LABEL[a]}</button>
                   ))}
                 </div>
               </div>
@@ -223,28 +199,72 @@ function Onboarding() {
                 <Label>Goal</Label>
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   {(Object.keys(GOAL_LABEL) as Goal[]).map((g) => (
-                    <button
-                      key={g}
-                      onClick={() => update("goal", g)}
+                    <button key={g} onClick={() => update("goal", g)}
                       className={`rounded-xl border px-3 py-3 text-sm font-medium transition ${
-                        form.goal === g
-                          ? "border-primary bg-primary-soft text-primary"
-                          : "hover:border-primary/40"
-                      }`}
-                    >
-                      {GOAL_LABEL[g]}
-                    </button>
+                        form.goal === g ? "border-primary bg-primary-soft text-primary" : "hover:border-primary/40"
+                      }`}>{GOAL_LABEL[g]}</button>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-6">
+              <h1 className="font-display text-3xl font-bold">Diet &amp; allergens</h1>
+              <p className="text-sm text-muted-foreground">We'll filter our 1,000+ USDA-sourced foods to match.</p>
+              <div>
+                <Label>Diet preference</Label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {DIETS.map((d) => (
+                    <button key={d} onClick={() => update("diet", d)}
+                      className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                        form.diet === d ? "border-primary bg-primary-soft text-primary" : "hover:border-primary/40"
+                      }`}>{DIET_LABEL[d]}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label>Allergens to avoid</Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {ALLERGENS.map((a) => {
+                    const on = form.allergens.includes(a);
+                    return (
+                      <button key={a} onClick={() => update("allergens", toggle(form.allergens, a))}
+                        className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
+                          on ? "border-primary bg-primary-soft text-primary font-medium" : "hover:border-primary/40"
+                        }`}>{ALLERGEN_LABEL[a]}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-6">
+              <h1 className="font-display text-3xl font-bold">Health considerations</h1>
+              <p className="text-sm text-muted-foreground">
+                Optional. We'll tune calorie, sodium, and macro guidance for any conditions you select.
+              </p>
+              <div>
+                <Label>Clinical conditions</Label>
+                <div className="mt-2 space-y-2">
+                  {CONDITIONS.map((c) => {
+                    const on = form.conditions.includes(c);
+                    return (
+                      <button key={c} onClick={() => update("conditions", toggle(form.conditions, c))}
+                        className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition ${
+                          on ? "border-primary bg-primary-soft text-primary font-medium" : "hover:border-primary/40"
+                        }`}>{CONDITION_LABEL[c]}</button>
+                    );
+                  })}
                 </div>
               </div>
               {preview && (
                 <div className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-soft)]">
-                  <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                    Your daily plan
-                  </p>
-                  <p className="mt-1 font-display text-3xl font-bold text-primary">
-                    {preview.calories} kcal
-                  </p>
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground">Your daily plan</p>
+                  <p className="mt-1 font-display text-3xl font-bold text-primary">{preview.calories} kcal</p>
                   <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
                     <span>Protein <b className="text-foreground">{preview.protein}g</b></span>
                     <span>Carbs <b className="text-foreground">{preview.carbs}g</b></span>
@@ -264,7 +284,7 @@ function Onboarding() {
           ) : (
             <span />
           )}
-          {step < 3 ? (
+          {step < totalSteps - 1 ? (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext}>
               Continue <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
