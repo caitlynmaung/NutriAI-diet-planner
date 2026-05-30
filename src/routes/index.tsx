@@ -64,18 +64,18 @@ function Landing() {
           {[
             {
               icon: Target,
-              title: "Smart targets",
-              body: "Calorie and macro goals calculated from your body and lifestyle.",
+              title: "1,000+ USDA foods",
+              body: "Search and log from a curated USDA FoodData Central database, tagged with allergens and diet flags.",
             },
             {
               icon: Utensils,
-              title: "Effortless logging",
-              body: "Add meals in seconds with serving sizes that recalculate instantly.",
+              title: "7-day meal plan in seconds",
+              body: "Personalized weekly plan that respects allergens, diet, and clinical conditions like diabetes, CKD, or hypertension.",
             },
             {
               icon: Activity,
               title: "Real-time progress",
-              body: "A clean dashboard ring keeps your remaining calories front and center.",
+              body: "A clean dashboard ring keeps your remaining calories and macros front and center.",
             },
           ].map(({ icon: Icon, title, body }) => (
             <div
