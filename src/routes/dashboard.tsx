@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Leaf, RotateCcw } from "lucide-react";
+import { Leaf, RotateCcw, CalendarRange } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { MacroBar } from "@/components/MacroBar";
 import { MealSection } from "@/components/MealSection";
@@ -45,18 +45,25 @@ function Dashboard() {
             <Leaf className="h-5 w-5 text-primary" />
             <span className="font-display text-base font-bold tracking-tight">NourishPlan</span>
           </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (confirm("Reset your profile and start onboarding again?")) {
-                setProfile(null);
-                navigate({ to: "/onboarding" });
-              }
-            }}
-          >
-            <RotateCcw className="mr-1.5 h-4 w-4" /> Reset
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/meal-plan">
+                <CalendarRange className="mr-1.5 h-4 w-4" /> 7-day plan
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (confirm("Reset your profile and start onboarding again?")) {
+                  setProfile(null);
+                  navigate({ to: "/onboarding" });
+                }
+              }}
+            >
+              <RotateCcw className="mr-1.5 h-4 w-4" /> Reset
+            </Button>
+          </div>
         </div>
       </header>
 

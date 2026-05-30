@@ -1,3 +1,5 @@
+import type { Allergen, Condition, DietTag } from "./foods";
+
 export type Sex = "male" | "female";
 export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "very_active";
 export type Goal = "lose" | "maintain" | "gain";
@@ -10,11 +12,14 @@ export type Profile = {
   weightKg: number;
   activity: ActivityLevel;
   goal: Goal;
+  diet: DietTag;
+  allergens: Allergen[];
+  conditions: Condition[];
 };
 
 export type Targets = {
   calories: number;
-  protein: number; // grams
+  protein: number;
   carbs: number;
   fat: number;
 };
@@ -28,7 +33,6 @@ const ACTIVITY_MULT: Record<ActivityLevel, number> = {
 };
 
 export function calculateTargets(p: Profile): Targets {
-  // Mifflin-St Jeor
   const bmr =
     p.sex === "male"
       ? 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.age + 5
@@ -36,8 +40,6 @@ export function calculateTargets(p: Profile): Targets {
   const tdee = bmr * ACTIVITY_MULT[p.activity];
   const adj = p.goal === "lose" ? -500 : p.goal === "gain" ? 350 : 0;
   const calories = Math.round(tdee + adj);
-
-  // Macros: protein 30%, fat 25%, carbs 45%
   const protein = Math.round((calories * 0.3) / 4);
   const fat = Math.round((calories * 0.25) / 9);
   const carbs = Math.round((calories * 0.45) / 4);
@@ -56,4 +58,11 @@ export const GOAL_LABEL: Record<Goal, string> = {
   lose: "Lose weight",
   maintain: "Maintain",
   gain: "Gain muscle",
+};
+
+export const DIET_LABEL: Record<DietTag, string> = {
+  omnivore: "Omnivore",
+  pescatarian: "Pescatarian",
+  vegetarian: "Vegetarian",
+  vegan: "Vegan",
 };
