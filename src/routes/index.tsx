@@ -1,29 +1,96 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Leaf, Activity, Target, Utensils } from "lucide-react";
+import { useProfile } from "@/lib/storage";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Your App" },
-      { name: "description", content: "Replace this with a one-sentence description of your app." },
-      { property: "og:title", content: "Your App" },
-      { property: "og:description", content: "Replace this with a one-sentence description of your app." },
+      { title: "NourishPlan — Personalized Diet Planner" },
+      { name: "description", content: "Get a personalized daily calorie and macro plan, log meals, and track progress in real time." },
+      { property: "og:title", content: "NourishPlan — Personalized Diet Planner" },
+      { property: "og:description", content: "Personalized calorie targets, macro tracking, and meal logging — built for healthy habits." },
     ],
   }),
-  component: Index,
+  component: Landing,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function Landing() {
+  const navigate = useNavigate();
+  const { profile, loaded } = useProfile();
+
+  useEffect(() => {
+    if (loaded && profile) navigate({ to: "/dashboard" });
+  }, [loaded, profile, navigate]);
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="min-h-screen bg-gradient-to-br from-primary-soft via-background to-background">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+        <Link to="/" className="flex items-center gap-2">
+          <Leaf className="h-6 w-6 text-primary" />
+          <span className="font-display text-lg font-bold tracking-tight">NourishPlan</span>
+        </Link>
+        <Button asChild variant="ghost">
+          <Link to="/onboarding">Get started</Link>
+        </Button>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-6 pb-24 pt-12 md:pt-20">
+        <div className="mx-auto max-w-3xl text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs font-medium text-primary">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            Built for healthy habits
+          </span>
+          <h1 className="mt-6 font-display text-5xl font-bold tracking-tight md:text-6xl">
+            Eat with intention.{" "}
+            <span className="text-primary">Hit your goals.</span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground">
+            Personalized calorie and macro targets, real-time meal tracking, and a
+            dashboard that actually keeps you on plan.
+          </p>
+          <div className="mt-9 flex flex-wrap justify-center gap-3">
+            <Button asChild size="lg" className="px-7">
+              <Link to="/onboarding">Build my plan</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link to="/dashboard">View dashboard</Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-20 grid gap-5 md:grid-cols-3">
+          {[
+            {
+              icon: Target,
+              title: "Smart targets",
+              body: "Calorie and macro goals calculated from your body and lifestyle.",
+            },
+            {
+              icon: Utensils,
+              title: "Effortless logging",
+              body: "Add meals in seconds with serving sizes that recalculate instantly.",
+            },
+            {
+              icon: Activity,
+              title: "Real-time progress",
+              body: "A clean dashboard ring keeps your remaining calories front and center.",
+            },
+          ].map(({ icon: Icon, title, body }) => (
+            <div
+              key={title}
+              className="rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)]"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-primary-soft text-primary">
+                <Icon className="h-5 w-5" />
+              </span>
+              <h3 className="mt-4 font-display text-lg font-semibold">{title}</h3>
+              <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
+            </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 }
