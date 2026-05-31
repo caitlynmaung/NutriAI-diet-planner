@@ -7,9 +7,9 @@ import { useProfile } from "@/lib/storage";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "NourishPlan — Personalized Diet Planner" },
+      { title: "NutriAI — Personalized Diet Planner" },
       { name: "description", content: "Get a personalized daily calorie and macro plan, log meals, and track progress in real time." },
-      { property: "og:title", content: "NourishPlan — Personalized Diet Planner" },
+      { property: "og:title", content: "NutriAI — Personalized Diet Planner" },
       { property: "og:description", content: "Personalized calorie targets, macro tracking, and meal logging — built for healthy habits." },
     ],
   }),
@@ -29,7 +29,7 @@ function Landing() {
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <Link to="/" className="flex items-center gap-2">
           <Leaf className="h-6 w-6 text-primary" />
-          <span className="font-display text-lg font-bold tracking-tight">NourishPlan</span>
+          <span className="font-display text-lg font-bold tracking-tight">NutriAI</span>
         </Link>
         <Button asChild variant="ghost">
           <Link to="/onboarding">Get started</Link>

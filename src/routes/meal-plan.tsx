@@ -15,7 +15,7 @@ import type { MealType } from "@/lib/storage";
 export const Route = createFileRoute("/meal-plan")({
   head: () => ({
     meta: [
-      { title: "7-Day Meal Plan — NourishPlan" },
+      { title: "7-Day Meal Plan — NutriAI" },
       { name: "description", content: "A personalized 7-day meal plan tuned to your goals, allergens, and clinical conditions." },
     ],
   }),
@@ -85,7 +85,7 @@ function MealPlanPage() {
           </Link>
           <div className="flex items-center gap-2">
             <Leaf className="h-5 w-5 text-primary" />
-            <span className="font-display text-base font-bold tracking-tight">NourishPlan</span>
+            <span className="font-display text-base font-bold tracking-tight">NutriAI</span>
           </div>
         </div>
       </header>

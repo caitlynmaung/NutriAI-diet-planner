@@ -26,7 +26,7 @@ import {
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
     meta: [
-      { title: "Get Started — NourishPlan" },
+      { title: "Get Started — NutriAI" },
       { name: "description", content: "Set up your personalized calorie and macro targets in under a minute." },
     ],
   }),
@@ -116,7 +116,7 @@ function Onboarding() {
       <div className="mx-auto flex min-h-screen max-w-xl flex-col px-5 py-10">
         <div className="mb-10 flex items-center gap-2">
           <Leaf className="h-6 w-6 text-primary" />
-          <span className="font-display text-lg font-bold tracking-tight">NourishPlan</span>
+          <span className="font-display text-lg font-bold tracking-tight">NutriAI</span>
         </div>
 
         <div className="mb-8 flex gap-1.5">
