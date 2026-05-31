@@ -40,9 +40,20 @@ export function calculateTargets(p: Profile): Targets {
   const tdee = bmr * ACTIVITY_MULT[p.activity];
   const adj = p.goal === "lose" ? -500 : p.goal === "gain" ? 350 : 0;
   const calories = Math.round(tdee + adj);
-  const protein = Math.round((calories * 0.3) / 4);
-  const fat = Math.round((calories * 0.25) / 9);
-  const carbs = Math.round((calories * 0.45) / 4);
+
+  // Condition-aware macro split (T2D lowers carbs, CKD lowers protein, etc.)
+  let pPct = 0.3, fPct = 0.25, cPct = 0.45;
+  const cs = p.conditions ?? [];
+  if (cs.includes("diabetes")) { cPct = 0.35; fPct = 0.30; pPct = 0.35; }
+  if (cs.includes("high_cholesterol")) { fPct = Math.min(fPct, 0.25); }
+  if (cs.includes("ckd")) { pPct = 0.15; cPct = 0.55; fPct = 0.30; }
+  if (cs.includes("gerd")) { fPct = Math.min(fPct, 0.25); }
+  const sum = pPct + fPct + cPct;
+  pPct /= sum; fPct /= sum; cPct /= sum;
+
+  const protein = Math.round((calories * pPct) / 4);
+  const fat = Math.round((calories * fPct) / 9);
+  const carbs = Math.round((calories * cPct) / 4);
   return { calories, protein, carbs, fat };
 }
 

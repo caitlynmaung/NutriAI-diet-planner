@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Leaf, Sparkles, RefreshCw, Clock, Plus, ArrowLeft } from "lucide-react";
+import { Leaf, Sparkles, RefreshCw, Clock, Plus, ArrowLeft, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useProfile, useDayLog, todayKey } from "@/lib/storage";
 import {
   generateMealPlan,
@@ -10,12 +10,13 @@ import {
   type MealPlan,
   type PlannedMeal,
 } from "@/lib/mealPlan";
+import { dislike, like } from "@/lib/preferences";
 import type { MealType } from "@/lib/storage";
 
 export const Route = createFileRoute("/meal-plan")({
   head: () => ({
     meta: [
-      { title: "7-Day Meal Plan — NourishPlan" },
+      { title: "7-Day Meal Plan — NutriAI" },
       { name: "description", content: "A personalized 7-day meal plan tuned to your goals, allergens, and clinical conditions." },
     ],
   }),
@@ -85,7 +86,7 @@ function MealPlanPage() {
           </Link>
           <div className="flex items-center gap-2">
             <Leaf className="h-5 w-5 text-primary" />
-            <span className="font-display text-base font-bold tracking-tight">NourishPlan</span>
+            <span className="font-display text-base font-bold tracking-tight">NutriAI</span>
           </div>
         </div>
       </header>
@@ -225,19 +226,41 @@ function PlannedMealCard({
                 {item.amount}{item.unit === "piece" ? " pc" : item.unit} · {Math.round(item.calories)} kcal
               </div>
             </div>
-            {onLog && (
-              <button
-                onClick={() => onLog(item)}
-                className="ml-2 rounded-md p-1.5 text-primary transition hover:bg-primary-soft"
-                aria-label="Log to today"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              <FeedbackButton foodId={item.foodId} kind="like" />
+              <FeedbackButton foodId={item.foodId} kind="dislike" />
+              {onLog && (
+                <button
+                  onClick={() => onLog(item)}
+                  className="ml-1 rounded-md p-1.5 text-primary transition hover:bg-primary-soft"
+                  aria-label="Log to today"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+function FeedbackButton({ foodId, kind }: { foodId: string; kind: "like" | "dislike" }) {
+  const [active, setActive] = useState(false);
+  const Icon = kind === "like" ? ThumbsUp : ThumbsDown;
+  return (
+    <button
+      onClick={() => {
+        if (kind === "like") like(foodId); else dislike(foodId);
+        setActive(true);
+        setTimeout(() => setActive(false), 600);
+      }}
+      className={`rounded-md p-1.5 transition ${active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-muted"}`}
+      aria-label={kind === "like" ? "More like this" : "Avoid this"}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
   );
 }
 

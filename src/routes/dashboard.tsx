@@ -10,7 +10,7 @@ import { sumDay, todayKey, useDayLog, useProfile } from "@/lib/storage";
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Today — NourishPlan" },
+      { title: "Today — NutriAI" },
       { name: "description", content: "Track your meals and stay on top of your daily calorie and macro goals." },
     ],
   }),
@@ -43,7 +43,7 @@ function Dashboard() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4">
           <Link to="/" className="flex items-center gap-2">
             <Leaf className="h-5 w-5 text-primary" />
-            <span className="font-display text-base font-bold tracking-tight">NourishPlan</span>
+            <span className="font-display text-base font-bold tracking-tight">NutriAI</span>
           </Link>
           <div className="flex items-center gap-1">
             <Button asChild variant="ghost" size="sm">
