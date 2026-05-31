@@ -1,5 +1,6 @@
-import { FOODS, isFoodAllowed, type FoodItem, type HealthFilters } from "./foods";
+import { FOODS, clinicalPenalty, isFoodAllowed, type FoodItem, type HealthFilters } from "./foods";
 import type { Targets } from "./nutrition";
+import { loadPrefs, preferenceWeight, type Prefs } from "./preferences";
 import type { LoggedItem, MealType } from "./storage";
 
 export type PlannedMeal = {
@@ -126,10 +127,34 @@ function buildMealCandidate(
   return { meal, items, totals };
 }
 
+function rankedScore(
+  cand: PlannedMeal,
+  target: { calories: number; protein: number; carbs: number; fat: number },
+  pool: FoodItem[],
+  conditions: HealthFilters["conditions"],
+  prefs: Prefs,
+): number {
+  // Combined ranking signal:
+  //   macro fit  + clinical safety penalty − user preference boost
+  const macro = macroScore(cand.totals, target);
+  const byId = new Map(pool.map((f) => [f.id, f]));
+  let clin = 0;
+  let prefBoost = 0;
+  for (const it of cand.items) {
+    const f = byId.get(it.foodId);
+    if (!f) continue;
+    clin += clinicalPenalty(f, conditions);
+    prefBoost += (preferenceWeight(f.id, prefs) - 1);
+  }
+  return macro + 0.4 * clin - 0.15 * prefBoost;
+}
+
 function planMeal(
   meal: MealType,
   pool: FoodItem[],
   dayTarget: Targets,
+  conditions: HealthFilters["conditions"],
+  prefs: Prefs,
   rnd: () => number,
 ): PlannedMeal {
   const share = MEAL_SPLIT[meal];
@@ -155,7 +180,7 @@ function planMeal(
       target.fat,
       rnd,
     );
-    const s = macroScore(cand.totals, target);
+    const s = rankedScore(cand, target, source, conditions, prefs);
     if (s < bestScore) {
       bestScore = s;
       best = cand;
@@ -168,6 +193,7 @@ export function generateMealPlan(
   targets: Targets,
   filters: HealthFilters,
   seed = Date.now(),
+  prefs: Prefs = loadPrefs(),
 ): MealPlan {
   const pool = FOODS.filter((f) => isFoodAllowed(f, filters));
   if (pool.length < 20) {
@@ -183,7 +209,7 @@ export function generateMealPlan(
     date.setDate(start.getDate() + d);
     const meals: PlannedMeal[] = (
       ["breakfast", "lunch", "dinner", "snacks"] as MealType[]
-    ).map((m) => planMeal(m, pool, targets, rnd));
+    ).map((m) => planMeal(m, pool, targets, filters.conditions, prefs, rnd));
     const totals = sumTotals(meals.flatMap((m) => m.items));
     days.push({ date: date.toISOString().slice(0, 10), meals, totals });
   }
