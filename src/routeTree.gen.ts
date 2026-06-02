@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MealPlanRouteImport } from './routes/meal-plan'
+import { Route as GroceryRouteImport } from './routes/grocery'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +23,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const MealPlanRoute = MealPlanRouteImport.update({
   id: '/meal-plan',
   path: '/meal-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GroceryRoute = GroceryRouteImport.update({
+  id: '/grocery',
+  path: '/grocery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
 }
@@ -51,20 +59,28 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/meal-plan' | '/onboarding'
+  fullPaths: '/' | '/dashboard' | '/grocery' | '/meal-plan' | '/onboarding'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/meal-plan' | '/onboarding'
-  id: '__root__' | '/' | '/dashboard' | '/meal-plan' | '/onboarding'
+  to: '/' | '/dashboard' | '/grocery' | '/meal-plan' | '/onboarding'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/grocery'
+    | '/meal-plan'
+    | '/onboarding'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  GroceryRoute: typeof GroceryRoute
   MealPlanRoute: typeof MealPlanRoute
   OnboardingRoute: typeof OnboardingRoute
 }
@@ -83,6 +99,13 @@ declare module '@tanstack/react-router' {
       path: '/meal-plan'
       fullPath: '/meal-plan'
       preLoaderRoute: typeof MealPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/grocery': {
+      id: '/grocery'
+      path: '/grocery'
+      fullPath: '/grocery'
+      preLoaderRoute: typeof GroceryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -105,9 +128,20 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  GroceryRoute: GroceryRoute,
   MealPlanRoute: MealPlanRoute,
   OnboardingRoute: OnboardingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
