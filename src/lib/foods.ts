@@ -27,13 +27,40 @@ export type FoodItem = {
   fat: number;
   fiber: number;
   sodium: number;
+  // micronutrients per 100g
+  iron: number;       // mg
+  calcium: number;    // mg
+  b12: number;        // µg
+  vitaminD: number;   // µg
+  zinc: number;       // mg
+  potassium: number;  // mg
+  magnesium: number;  // mg
+  omega3: number;     // g
+  gi: number;         // glycemic index 0-100 (0 if not applicable)
+  pricePer100g: number; // USD per 100g
   allergens: Allergen[];
   diet: DietTag;
   meals: MealSlot[];
   flags: ConditionFlag[];
+  tags: string[];
 };
 
-export const FOODS: FoodItem[] = rawFoods as FoodItem[];
+export const FOODS: FoodItem[] = (rawFoods as FoodItem[]).map((f) => ({
+  ...f,
+  tags: f.tags ?? [],
+}));
+
+// Adult Recommended Daily Allowances (mixed adult average)
+export const RDA = {
+  iron: 12,        // mg
+  calcium: 1000,   // mg
+  b12: 2.4,        // µg
+  vitaminD: 15,    // µg
+  zinc: 9,         // mg
+  potassium: 3500, // mg
+  magnesium: 380,  // mg
+  fiber: 28,       // g
+};
 
 const ALLOWS_DIET: Record<DietTag, DietTag[]> = {
   vegan: ["vegan"],
@@ -43,7 +70,7 @@ const ALLOWS_DIET: Record<DietTag, DietTag[]> = {
 };
 
 export const ALLERGEN_LABEL: Record<Allergen, string> = {
-  dairy: "Dairy",
+  dairy: "Dairy / Lactose",
   eggs: "Eggs",
   gluten: "Gluten",
   soy: "Soy",
@@ -65,10 +92,10 @@ export type Condition =
 
 export const CONDITION_LABEL: Record<Exclude<Condition, "none">, string> = {
   diabetes: "Type 2 Diabetes",
-  hypertension: "Hypertension",
+  hypertension: "Hypertension (DASH)",
   high_cholesterol: "High cholesterol",
   ckd: "Kidney disease (CKD)",
-  ibs: "IBS",
+  ibs: "IBS (low-FODMAP)",
   gerd: "GERD / Acid reflux",
 };
 
@@ -76,65 +103,71 @@ export type HealthFilters = {
   diet: DietTag;
   allergens: Allergen[];
   conditions: Condition[];
+  /** Additional tag-based exclusions, e.g. ["pork"] or ["lactose"]. */
+  excludeTags?: string[];
 };
 
-// --- Persona trigger heuristics (computed from name + category) ---------
-
-// High-FODMAP / common IBS triggers
-const IBS_TRIGGER_PATTERNS = [
-  /\bonion\b/i, /\bgarlic\b/i, /\bleek\b/i, /\bshallot\b/i,
-  /\bwheat\b/i, /\brye\b/i, /\bbarley\b/i, /\bbread\b/i, /\bpasta\b/i, /\bcouscous\b/i,
-  /\bapple\b/i, /\bpear\b/i, /\bmango\b/i, /\bwatermelon\b/i, /\bcherry\b/i, /\bplum\b/i,
-  /\bhoney\b/i, /\bagave\b/i, /\bcorn syrup\b/i,
-  /\bbeans?\b/i, /\blentil/i, /\bchickpea/i, /\bsoybean/i,
-  /\bmilk\b/i, /\byogurt\b/i, /\bcottage cheese\b/i, /\bice cream\b/i,
-  /\bcauliflower\b/i, /\bmushroom\b/i, /\basparagus\b/i, /\bcabbage\b/i,
-];
-
-// GERD common triggers: acidic, spicy, high-fat, caffeine, mint, chocolate, alcohol, tomato, citrus
-const GERD_TRIGGER_PATTERNS = [
-  /\btomato/i, /\borange\b/i, /\blemon/i, /\blime\b/i, /\bgrapefruit/i, /\bpineapple/i,
-  /\bcoffee\b/i, /\bespresso\b/i, /\btea\b/i, /\bcola\b/i, /\bsoda\b/i,
-  /\bchocolate\b/i, /\bcocoa\b/i, /\bmint\b/i, /\bpeppermint\b/i,
-  /\balcohol/i, /\bwine\b/i, /\bbeer\b/i, /\bliquor/i,
-  /\bchili\b/i, /\bpepper, hot/i, /\bjalapeno/i, /\bsalsa\b/i, /\bcurry\b/i,
-  /\bfried\b/i, /\bbacon\b/i, /\bsausage\b/i, /\bpepperoni/i, /\bvinegar/i,
-];
-
-function matchesAny(food: FoodItem, patterns: RegExp[]) {
-  const hay = `${food.name} ${food.category}`;
-  return patterns.some((p) => p.test(hay));
-}
-
-export function ibsTrigger(food: FoodItem): boolean {
-  return matchesAny(food, IBS_TRIGGER_PATTERNS);
-}
-export function gerdTrigger(food: FoodItem): boolean {
-  return matchesAny(food, GERD_TRIGGER_PATTERNS) || food.fat > 25;
+// ---- allergen cross-contamination & lactose ------------------------------
+function hasAllergen(food: FoodItem, a: Allergen): boolean {
+  if (food.allergens.includes(a)) return true;
+  if (a === "dairy" && food.tags.includes("lactose")) return true;
+  if (a === "gluten" && (food.tags.includes("contains_gluten") || food.tags.includes("gluten_cc_risk"))) return true;
+  return false;
 }
 
 export function isFoodAllowed(food: FoodItem, f: HealthFilters): boolean {
   if (!ALLOWS_DIET[f.diet].includes(food.diet)) return false;
-  if (food.allergens.some((a) => f.allergens.includes(a))) return false;
-  if (f.conditions.includes("hypertension") && (food.flags.includes("high_sodium") || food.sodium > 400)) return false;
-  if (f.conditions.includes("diabetes") && food.flags.includes("high_glycemic")) return false;
-  if (f.conditions.includes("high_cholesterol") && food.flags.includes("high_fat") && food.fat > 20) return false;
-  if (f.conditions.includes("ckd") && (food.sodium > 300 || food.protein > 28)) return false;
-  if (f.conditions.includes("ibs") && ibsTrigger(food)) return false;
-  if (f.conditions.includes("gerd") && gerdTrigger(food)) return false;
+  if (f.allergens.some((a) => hasAllergen(food, a))) return false;
+  if (f.excludeTags?.some((t) => food.tags.includes(t))) return false;
+
+  // ---- clinical filters ------------------------------------------------
+  if (f.conditions.includes("hypertension")) {
+    // DASH: cap per-100g sodium so daily total can stay ≤ 1500mg
+    if (food.sodium > 250 || food.flags.includes("high_sodium")) return false;
+  }
+  if (f.conditions.includes("diabetes")) {
+    // Low-GI ≤ 55 and no added-sugar items
+    if (food.gi > 55) return false;
+    if (food.tags.includes("added_sugar")) return false;
+    if (food.flags.includes("high_glycemic")) return false;
+  }
+  if (f.conditions.includes("high_cholesterol")) {
+    if (food.flags.includes("high_fat") && food.fat > 18) return false;
+    if (food.tags.includes("fried")) return false;
+  }
+  if (f.conditions.includes("ckd")) {
+    if (food.sodium > 250 || food.protein > 28 || food.potassium > 350) return false;
+  }
+  if (f.conditions.includes("ibs")) {
+    if (food.tags.includes("high_fodmap")) return false;
+    if (food.tags.includes("lactose")) return false;
+  }
+  if (f.conditions.includes("gerd")) {
+    if (food.tags.includes("gerd_trigger")) return false;
+    if (food.fat > 22) return false;
+  }
   return true;
 }
 
-// Soft scoring penalty for foods that pass filtering but are borderline for the
-// persona. Lower is better. Returned in normalized units roughly comparable to
-// the macro error score.
+// Soft clinical penalty (lower = better) -----------------------------------
 export function clinicalPenalty(food: FoodItem, conditions: Condition[]): number {
   let p = 0;
-  if (conditions.includes("hypertension")) p += food.sodium / 1000; // ~0..1
-  if (conditions.includes("diabetes")) p += Math.max(0, food.carbs - 20) / 80;
+  if (conditions.includes("hypertension")) p += food.sodium / 800;
+  if (conditions.includes("diabetes")) p += Math.max(0, food.gi - 35) / 100 + Math.max(0, food.carbs - 20) / 80;
   if (conditions.includes("high_cholesterol")) p += Math.max(0, food.fat - 10) / 40;
   if (conditions.includes("ckd")) p += food.protein / 60 + food.sodium / 1500;
-  if (conditions.includes("ibs") && ibsTrigger(food)) p += 0.5;
-  if (conditions.includes("gerd") && gerdTrigger(food)) p += 0.5;
+  if (conditions.includes("ibs") && food.tags.includes("high_fodmap")) p += 0.5;
+  if (conditions.includes("gerd") && food.tags.includes("gerd_trigger")) p += 0.5;
   return p;
+}
+
+// Used by the grocery-list aggregator to group ingredients
+export function normalizedKey(food: FoodItem): string {
+  // Reduce noisy USDA names to a coarse ingredient key
+  return food.name
+    .toLowerCase()
+    .replace(/,.*$/, "") // drop everything after first comma
+    .replace(/\b(raw|cooked|boiled|baked|frozen|canned|dried|fresh|ready-to-heat|toasted|with|without|added|reduced)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
