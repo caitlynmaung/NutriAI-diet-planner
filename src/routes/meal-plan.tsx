@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Leaf, Sparkles, RefreshCw, Clock, Plus, ArrowLeft, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Leaf, Sparkles, RefreshCw, Clock, Plus, ArrowLeft, ThumbsUp, ThumbsDown, ShoppingCart, Shuffle, DollarSign } from "lucide-react";
 import { useProfile, useDayLog, todayKey } from "@/lib/storage";
 import {
   generateMealPlan,
@@ -131,11 +131,17 @@ function MealPlanPage() {
 
         {plan && (
           <>
-            {elapsed !== null && (
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border bg-primary-soft px-3 py-1 text-xs text-primary">
-                <Clock className="h-3.5 w-3.5" /> Generated in {(elapsed / 1000).toFixed(2)}s
-              </div>
-            )}
+            <div className="mb-5 flex flex-wrap gap-2">
+              <Chip icon={<Clock className="h-3.5 w-3.5" />} text={`Generated in ${(plan.generationMs/1000).toFixed(2)}s${elapsed !== null ? ` (UI: ${(elapsed/1000).toFixed(2)}s)` : ""}`} />
+              <Chip icon={<Shuffle className="h-3.5 w-3.5" />} text={`Diversity ${plan.diversityScore}`} />
+              <Chip icon={<DollarSign className="h-3.5 w-3.5" />} text={`$${plan.weeklyCost.toFixed(2)} / week`} />
+              <Link to="/grocery" className="inline-flex items-center gap-1.5 rounded-full border bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:opacity-90">
+                <ShoppingCart className="h-3.5 w-3.5" /> Grocery list
+              </Link>
+              <Link to="/personas" className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs font-medium hover:border-primary/40">
+                Run persona tests
+              </Link>
+            </div>
 
             <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
               {plan.days.map((day, i) => {
