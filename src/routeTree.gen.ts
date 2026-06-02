@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PersonasRouteImport } from './routes/personas'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MealPlanRouteImport } from './routes/meal-plan'
 import { Route as GroceryRouteImport } from './routes/grocery'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 
+const PersonasRoute = PersonasRouteImport.update({
+  id: '/personas',
+  path: '/personas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
+  '/personas': typeof PersonasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
+  '/personas': typeof PersonasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,12 +70,25 @@ export interface FileRoutesById {
   '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
+  '/personas': typeof PersonasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/grocery' | '/meal-plan' | '/onboarding'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/grocery'
+    | '/meal-plan'
+    | '/onboarding'
+    | '/personas'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/grocery' | '/meal-plan' | '/onboarding'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/grocery'
+    | '/meal-plan'
+    | '/onboarding'
+    | '/personas'
   id:
     | '__root__'
     | '/'
@@ -75,6 +96,7 @@ export interface FileRouteTypes {
     | '/grocery'
     | '/meal-plan'
     | '/onboarding'
+    | '/personas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -83,10 +105,18 @@ export interface RootRouteChildren {
   GroceryRoute: typeof GroceryRoute
   MealPlanRoute: typeof MealPlanRoute
   OnboardingRoute: typeof OnboardingRoute
+  PersonasRoute: typeof PersonasRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/personas': {
+      id: '/personas'
+      path: '/personas'
+      fullPath: '/personas'
+      preLoaderRoute: typeof PersonasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -131,6 +161,7 @@ const rootRouteChildren: RootRouteChildren = {
   GroceryRoute: GroceryRoute,
   MealPlanRoute: MealPlanRoute,
   OnboardingRoute: OnboardingRoute,
+  PersonasRoute: PersonasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
