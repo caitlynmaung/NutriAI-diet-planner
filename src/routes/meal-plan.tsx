@@ -281,3 +281,11 @@ function Stat({ label, value, unit }: { label: string; value: string; unit: stri
     </div>
   );
 }
+
+function Chip({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border bg-primary-soft px-3 py-1 text-xs text-primary">
+      {icon}{text}
+    </span>
+  );
+}
