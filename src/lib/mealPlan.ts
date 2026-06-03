@@ -286,24 +286,7 @@ function topUpMicros(
   const snacks = day.meals.find((m) => m.meal === "snacks")!;
   const inDay = new Set(day.meals.flatMap((m) => m.items.map((i) => i.foodId)));
 
-  const boost = (key: keyof Micros, perDayTarget: number, perItemCap = 3) => {
-    let added = 0;
-    while (day.micros[key] < perDayTarget && added < perItemCap) {
-      const candidates = pool
-        .filter((f) => !inDay.has(f.id) && (f as any)[key] > 0)
-        .sort((a, b) => ((b as any)[key] / Math.max(b.calories, 1)) - ((a as any)[key] / Math.max(a.calories, 1)))
-        .slice(0, 20);
-      if (!candidates.length) break;
-      const food = candidates[0];
-      const grams = Math.min(100, Math.max(30, Math.round((perDayTarget - day.micros[key]) / Math.max((food as any)[key], 0.01) * food.baseAmount)));
-      appendItem(snacks, food, Math.min(grams, 150));
-      day.totals.calories += 0; // already added via appendItem
-      day.micros = addMicros(day.micros, microsForGrams(food, Math.min(grams, 150)));
-      // re-sum to avoid double counting micros (appendItem already added to snack.micros + day.micros below)
-      inDay.add(food.id);
-      added++;
-    }
-  };
+
 
   // Recompute day micros from meals to keep invariant simple
   const recompute = () => {
