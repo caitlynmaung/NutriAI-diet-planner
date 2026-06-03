@@ -1,4 +1,4 @@
-import { FOODS, RDA, clinicalPenalty, isFoodAllowed, type FoodItem, type HealthFilters } from "./foods";
+import { FOODS, RDA, clinicalPenalty, isFoodAllowed, rdaFor, type FoodItem, type HealthFilters, type RdaProfile } from "./foods";
 import type { Targets } from "./nutrition";
 import { loadPrefs, preferenceWeight, type Prefs } from "./preferences";
 import type { LoggedItem, MealType } from "./storage";
@@ -25,6 +25,7 @@ export type PlannedDay = {
 };
 
 export type MealPlan = {
+  planVersion: number;
   generatedAt: number;
   generationMs: number;
   filters: HealthFilters;
@@ -35,9 +36,38 @@ export type MealPlan = {
   weeklyCost: number;
 };
 
+type MicroRda = Pick<Micros, "iron" | "calcium" | "b12" | "vitaminD" | "zinc" | "potassium" | "magnesium" | "fiber">;
+
+const CONSERVATIVE_ADULT_RDA: MicroRda = {
+  iron: 18,
+  calcium: 1200,
+  b12: RDA.b12,
+  vitaminD: 20,
+  zinc: 11,
+  potassium: RDA.potassium,
+  magnesium: 420,
+  fiber: 38,
+};
+
+function rdaForPlan(profile?: RdaProfile): MicroRda {
+  if (!profile) return CONSERVATIVE_ADULT_RDA;
+  const tailored = rdaFor(profile);
+  return {
+    iron: tailored.iron,
+    calcium: tailored.calcium,
+    b12: tailored.b12,
+    vitaminD: tailored.vitaminD,
+    zinc: tailored.zinc,
+    potassium: tailored.potassium,
+    magnesium: tailored.magnesium,
+    fiber: tailored.fiber,
+  };
+}
+
 const MEAL_SPLIT: Record<MealType, number> = {
   breakfast: 0.25, lunch: 0.35, dinner: 0.3, snacks: 0.1,
 };
+const PLAN_VERSION = 2;
 const MEAL_ITEMS: Record<MealType, [number, number]> = {
   breakfast: [2, 3], lunch: [3, 4], dinner: [3, 4], snacks: [1, 2],
 };
@@ -276,12 +306,21 @@ function appendItem(meal: PlannedMeal, food: FoodItem, grams: number) {
   meal.estCost += cost;
 }
 
+function isPracticalTopUpFood(food: FoodItem, key: keyof Micros): boolean {
+  if (["Spices and Herbs", "Fats and Oils", "Sweets", "Baby Foods"].includes(food.category)) return false;
+  if (/\b(vinegar|extract|seasoning|spice|salt|sauce)\b/i.test(food.name)) return false;
+  if (key !== "calcium" && key !== "b12" && key !== "vitaminD" && food.category === "Beverages") return false;
+  if ((key === "b12" || key === "vitaminD") && food.diet === "vegan" && !food.tags.includes("fortified")) return false;
+  return true;
+}
+
 // Day-level micro top-up so per-day RDA thresholds are met for relevant conditions.
 function topUpMicros(
   day: PlannedDay,
   pool: FoodItem[],
   conditions: HealthFilters["conditions"],
   diet: HealthFilters["diet"],
+  rda: MicroRda,
 ) {
   const snacks = day.meals.find((m) => m.meal === "snacks")!;
   const inDay = new Set(day.meals.flatMap((m) => m.items.map((i) => i.foodId)));
@@ -297,7 +336,7 @@ function topUpMicros(
   recompute();
 
   // Generic per-day RDA enforcer: guarantees ≥80% RDA for the given micro
-  // (or the explicit target) by adding the densest qualifying food from the pool.
+  // by adding enough of the densest qualifying foods, using repeats only as fallback.
   const enforce = (
     key: keyof Micros,
     target: number,
@@ -306,22 +345,27 @@ function topUpMicros(
     grams = 70,
   ) => {
     let guard = 0;
-    while (day.micros[key] < target && guard < 12) {
+    while (day.micros[key] < target && guard < 20) {
       guard++;
-      const fresh = pool
+      const candidates = pool
         .filter((f) =>
-          !inDay.has(f.id) &&
           pickFn(f) > 0 &&
+          isPracticalTopUpFood(f, key) &&
           (!extra || extra(f)),
         )
         .sort((a, b) => pickFn(b) - pickFn(a))
         .slice(0, 25);
-      if (!fresh.length) break;
-      const food = fresh[0];
-      appendItem(snacks, food, grams);
+      const best = candidates[0];
+      const fresh = candidates.filter((f) => !inDay.has(f.id));
+      const food = fresh[0] && pickFn(fresh[0]) >= pickFn(best) * 0.75 ? fresh[0] : best;
+      if (!food) break;
+      const missing = target - day.micros[key];
+      const gramsNeeded = (missing / pickFn(food)) * food.baseAmount;
+      const maxServing = food.unit === "ml" ? 360 : 220;
+      const addGrams = Math.min(maxServing, Math.max(grams, Math.ceil(gramsNeeded / 5) * 5));
+      appendItem(snacks, food, addGrams);
       inDay.add(food.id);
       recompute();
-      if (snacks.items.length > 10) break;
     }
   };
 
@@ -331,20 +375,18 @@ function topUpMicros(
   const extra = hyper ? lowSodium : undefined;
 
   // Enforce ≥80% RDA every day for all key micros.
-  enforce("iron",      RDA.iron      * 0.8, (f) => f.iron,      extra, 60);
-  enforce("calcium",   RDA.calcium   * 0.8, (f) => f.calcium,   extra, 80);
-  enforce("zinc",      RDA.zinc      * 0.8, (f) => f.zinc,      extra, 70);
-  enforce("magnesium", RDA.magnesium * 0.8, (f) => f.magnesium, extra, 70);
-  enforce("potassium", RDA.potassium * 0.8, (f) => f.potassium, extra, 90);
-  enforce("fiber",     Math.max(RDA.fiber * 0.8, 25),
+  enforce("iron",      rda.iron      * 0.8, (f) => f.iron,      extra, 60);
+  enforce("calcium",   rda.calcium   * 0.8, (f) => f.calcium,   extra, 80);
+  enforce("zinc",      rda.zinc      * 0.8, (f) => f.zinc,      extra, 70);
+  enforce("magnesium", rda.magnesium * 0.8, (f) => f.magnesium, extra, 70);
+  enforce("potassium", rda.potassium * 0.8, (f) => f.potassium, extra, 90);
+  enforce("fiber",     Math.max(rda.fiber * 0.8, 25),
                        (f) => f.fiber,
                        (f) => !f.tags.includes("added_sugar") && (!hyper || lowSodium(f)),
                        70);
 
-  // B12: vegans rely on fortified/supplement — skip top-up to avoid animal foods.
-  if (diet !== "vegan") {
-    enforce("b12", RDA.b12 * 0.8, (f) => f.b12, extra, 80);
-  }
+  enforce("b12", rda.b12 * 0.8, (f) => f.b12, extra, diet === "vegan" ? 15 : 80);
+  enforce("vitaminD", rda.vitaminD * 0.8, (f) => f.vitaminD, extra, 120);
 }
 
 export function generateMealPlan(
@@ -352,6 +394,7 @@ export function generateMealPlan(
   filters: HealthFilters,
   seed = Date.now(),
   prefs: Prefs = loadPrefs(),
+  rdaProfile?: RdaProfile,
 ): MealPlan {
   const t0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
   const pool = FOODS.filter((f) => isFoodAllowed(f, filters));
@@ -359,6 +402,7 @@ export function generateMealPlan(
     throw new Error(`Only ${pool.length} foods match your filters. Try loosening allergens or conditions.`);
   }
   const rnd = mulberry32(seed);
+  const rda = rdaForPlan(rdaProfile);
   const days: PlannedDay[] = [];
   const usedFoodIds = new Set<string>();
   const start = new Date();
@@ -383,7 +427,7 @@ export function generateMealPlan(
     const day: PlannedDay = { date: date.toISOString().slice(0, 10), meals, totals, micros, estCost };
 
     // Per-day micronutrient top-up to guarantee persona pass-criteria
-    topUpMicros(day, pool, filters.conditions, filters.diet);
+    topUpMicros(day, pool, filters.conditions, filters.diet, rda);
     for (const it of day.meals.flatMap((m) => m.items)) usedFoodIds.add(it.foodId);
 
     days.push(day);
@@ -392,6 +436,7 @@ export function generateMealPlan(
   const diversityScore = computeDiversity(days);
   const weeklyCost = days.reduce((a, d) => a + d.estCost, 0);
   return {
+    planVersion: PLAN_VERSION,
     generatedAt: Date.now(),
     generationMs: Math.round(t1 - t0),
     filters, targets, days,
@@ -403,7 +448,12 @@ export function generateMealPlan(
 const PLAN_KEY = "dp.mealplan";
 export function loadPlan(): MealPlan | null {
   if (typeof window === "undefined") return null;
-  try { const raw = localStorage.getItem(PLAN_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+  try {
+    const raw = localStorage.getItem(PLAN_KEY);
+    if (!raw) return null;
+    const plan = JSON.parse(raw) as Partial<MealPlan>;
+    return plan.planVersion === PLAN_VERSION ? plan as MealPlan : null;
+  } catch { return null; }
 }
 export function savePlan(plan: MealPlan) {
   if (typeof window !== "undefined") localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
