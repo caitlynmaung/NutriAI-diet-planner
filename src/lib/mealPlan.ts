@@ -255,7 +255,7 @@ function computeDiversity(days: PlannedDay[]): number {
 function pickDrink(pool: FoodItem[], rnd: () => number, usedFoodIds: Set<string>): FoodItem | null {
   const drinks = pool.filter((f) =>
     f.category === "Beverages" &&
-    !/alcohol|beer|wine|liquor|sake|cocktail|pina colada/i.test(f.name) &&
+    !/alcohol|beer|wine|liquor|sake|cocktail|pina colada|coffee|espresso|latte|cappuccino|mocha|americano/i.test(f.name) &&
     !f.tags.includes("added_sugar"),
   );
   if (drinks.length === 0) return null;
