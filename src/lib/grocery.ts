@@ -47,7 +47,12 @@ export function buildGroceryList(plan: MealPlan): GroceryList {
       }
     }
   }
-  const items = Array.from(buckets.values()).sort((a, b) => b.estCost - a.estCost);
+  // Apply a realistic per-item minimum: you can't buy 20g of biscuits for $0.13.
+  // Floor to $0.50 minimum (a single-serve grocery purchase).
+  const MIN_ITEM_COST = 0.5;
+  const items = Array.from(buckets.values())
+    .map((i) => ({ ...i, estCost: Math.max(i.estCost, MIN_ITEM_COST) }))
+    .sort((a, b) => b.estCost - a.estCost);
   const byCategory: Record<string, GroceryItem[]> = {};
   for (const i of items) (byCategory[i.category] ??= []).push(i);
   const totalCost = items.reduce((a, i) => a + i.estCost, 0);
