@@ -89,7 +89,7 @@ const NUTRIENT_SUPPORT_FOODS: FoodItem[] = [
     iron: 0.1,
     calcium: 120,
     b12: 0.4,
-    vitaminD: 1.5,
+    vitaminD: 2.5,
     zinc: 0.2,
     potassium: 160,
     magnesium: 12,
