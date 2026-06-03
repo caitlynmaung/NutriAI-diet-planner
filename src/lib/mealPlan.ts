@@ -296,68 +296,54 @@ function topUpMicros(
   };
   recompute();
 
-  // Diabetes / general fibre target → ≥28g/day (RDA), aim for 30 for headroom
-  if (conditions.includes("diabetes") || conditions.includes("high_cholesterol")) {
-    while (day.micros.fiber < 30) {
+  // Generic per-day RDA enforcer: guarantees ≥80% RDA for the given micro
+  // (or the explicit target) by adding the densest qualifying food from the pool.
+  const enforce = (
+    key: keyof Micros,
+    target: number,
+    pickFn: (f: FoodItem) => number,
+    extra?: (f: FoodItem) => boolean,
+    grams = 70,
+  ) => {
+    let guard = 0;
+    while (day.micros[key] < target && guard < 12) {
+      guard++;
       const fresh = pool
-        .filter((f) => !inDay.has(f.id) && f.fiber >= 5 && f.gi <= 55 && !f.tags.includes("added_sugar"))
-        .sort((a, b) => b.fiber - a.fiber)
+        .filter((f) =>
+          !inDay.has(f.id) &&
+          pickFn(f) > 0 &&
+          (!extra || extra(f)),
+        )
+        .sort((a, b) => pickFn(b) - pickFn(a))
         .slice(0, 25);
       if (!fresh.length) break;
-      const food = fresh[Math.floor(Math.random() * Math.min(5, fresh.length))] || fresh[0];
-      appendItem(snacks, food, 60);
+      const food = fresh[0];
+      appendItem(snacks, food, grams);
       inDay.add(food.id);
       recompute();
-      if (day.meals.find((m) => m.meal === "snacks")!.items.length > 8) break;
+      if (snacks.items.length > 10) break;
     }
-  }
+  };
 
-  // B12 ≥ RDA per day for omnivore/pescatarian plans (vegans rely on fortified/supplement)
+  // Sodium cap for hypertension overrides default extra-filter; keep low-sodium picks.
+  const lowSodium = (f: FoodItem) => f.sodium <= 150;
+  const hyper = conditions.includes("hypertension");
+  const extra = hyper ? lowSodium : undefined;
+
+  // Enforce ≥80% RDA every day for all key micros.
+  enforce("iron",      RDA.iron      * 0.8, (f) => f.iron,      extra, 60);
+  enforce("calcium",   RDA.calcium   * 0.8, (f) => f.calcium,   extra, 80);
+  enforce("zinc",      RDA.zinc      * 0.8, (f) => f.zinc,      extra, 70);
+  enforce("magnesium", RDA.magnesium * 0.8, (f) => f.magnesium, extra, 70);
+  enforce("potassium", RDA.potassium * 0.8, (f) => f.potassium, extra, 90);
+  enforce("fiber",     Math.max(RDA.fiber * 0.8, 25),
+                       (f) => f.fiber,
+                       (f) => !f.tags.includes("added_sugar") && (!hyper || lowSodium(f)),
+                       70);
+
+  // B12: vegans rely on fortified/supplement — skip top-up to avoid animal foods.
   if (diet !== "vegan") {
-    while (day.micros.b12 < 2.4) {
-      const fresh = pool
-        .filter((f) => !inDay.has(f.id) && f.b12 >= 1)
-        .sort((a, b) => b.b12 - a.b12)
-        .slice(0, 25);
-      if (!fresh.length) break;
-      const food = fresh[0];
-      appendItem(snacks, food, 80);
-      inDay.add(food.id);
-      recompute();
-      if (day.meals.find((m) => m.meal === "snacks")!.items.length > 8) break;
-    }
-  }
-
-  // Potassium ≥ 80% RDA for hypertension
-  if (conditions.includes("hypertension")) {
-    while (day.micros.potassium < RDA.potassium * 0.8) {
-      const fresh = pool
-        .filter((f) => !inDay.has(f.id) && f.potassium >= 200 && f.sodium <= 100)
-        .sort((a, b) => b.potassium - a.potassium)
-        .slice(0, 25);
-      if (!fresh.length) break;
-      const food = fresh[0];
-      appendItem(snacks, food, 80);
-      inDay.add(food.id);
-      recompute();
-      if (day.meals.find((m) => m.meal === "snacks")!.items.length > 8) break;
-    }
-  }
-
-  // Iron ≥ 80% RDA for vegetarian/vegan (Priya, Mei)
-  if (diet === "vegetarian" || diet === "vegan") {
-    while (day.micros.iron < RDA.iron * 0.8) {
-      const fresh = pool
-        .filter((f) => !inDay.has(f.id) && f.iron >= 2)
-        .sort((a, b) => b.iron - a.iron)
-        .slice(0, 25);
-      if (!fresh.length) break;
-      const food = fresh[0];
-      appendItem(snacks, food, 60);
-      inDay.add(food.id);
-      recompute();
-      if (day.meals.find((m) => m.meal === "snacks")!.items.length > 8) break;
-    }
+    enforce("b12", RDA.b12 * 0.8, (f) => f.b12, extra, 80);
   }
 }
 
