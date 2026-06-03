@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Leaf, RotateCcw, CalendarRange, ShoppingCart, Beaker } from "lucide-react";
+import { Leaf, RotateCcw, CalendarRange, ShoppingCart, Beaker, Info } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { MacroBar } from "@/components/MacroBar";
 import { MealSection } from "@/components/MealSection";
@@ -54,6 +54,11 @@ function Dashboard() {
             <Button asChild variant="ghost" size="sm">
               <Link to="/grocery">
                 <ShoppingCart className="mr-1.5 h-4 w-4" /> Grocery
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/explain">
+                <Info className="mr-1.5 h-4 w-4" /> Explain
               </Link>
             </Button>
             <Button asChild variant="ghost" size="sm">

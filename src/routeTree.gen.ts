@@ -13,6 +13,7 @@ import { Route as PersonasRouteImport } from './routes/personas'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MealPlanRouteImport } from './routes/meal-plan'
 import { Route as GroceryRouteImport } from './routes/grocery'
+import { Route as ExplainRouteImport } from './routes/explain'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -36,6 +37,11 @@ const GroceryRoute = GroceryRouteImport.update({
   path: '/grocery',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExplainRoute = ExplainRouteImport.update({
+  id: '/explain',
+  path: '/explain',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -50,6 +56,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/explain': typeof ExplainRoute
   '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/explain': typeof ExplainRoute
   '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/explain': typeof ExplainRoute
   '/grocery': typeof GroceryRoute
   '/meal-plan': typeof MealPlanRoute
   '/onboarding': typeof OnboardingRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/explain'
     | '/grocery'
     | '/meal-plan'
     | '/onboarding'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/explain'
     | '/grocery'
     | '/meal-plan'
     | '/onboarding'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/explain'
     | '/grocery'
     | '/meal-plan'
     | '/onboarding'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  ExplainRoute: typeof ExplainRoute
   GroceryRoute: typeof GroceryRoute
   MealPlanRoute: typeof MealPlanRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -138,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GroceryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/explain': {
+      id: '/explain'
+      path: '/explain'
+      fullPath: '/explain'
+      preLoaderRoute: typeof ExplainRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  ExplainRoute: ExplainRoute,
   GroceryRoute: GroceryRoute,
   MealPlanRoute: MealPlanRoute,
   OnboardingRoute: OnboardingRoute,
