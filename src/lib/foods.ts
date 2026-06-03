@@ -45,10 +45,15 @@ export type FoodItem = {
   tags: string[];
 };
 
-export const FOODS: FoodItem[] = (rawFoods as FoodItem[]).map((f) => ({
-  ...f,
-  tags: f.tags ?? [],
-}));
+// Normalise raw USDA records: ensure tags array, and back-fill obvious
+// high-FODMAP triggers by name so the IBS filter never lets them through.
+const FODMAP_NAME_RE = /\b(onion|garlic|leek|shallot|scallion|wheat|rye|barley|asparagus|artichoke)\b/i;
+export const FOODS: FoodItem[] = (rawFoods as FoodItem[]).map((f) => {
+  const tags = f.tags ? [...f.tags] : [];
+  if (FODMAP_NAME_RE.test(f.name) && !tags.includes("high_fodmap")) tags.push("high_fodmap");
+  return { ...f, tags };
+});
+
 
 // Adult Recommended Daily Allowances (mixed adult average)
 export const RDA = {
