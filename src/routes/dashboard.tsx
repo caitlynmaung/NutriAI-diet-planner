@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Leaf, RotateCcw, CalendarRange, ShoppingCart, Beaker } from "lucide-react";
+import { Leaf, RotateCcw, CalendarRange, ShoppingCart, Beaker, Info } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
 import { MacroBar } from "@/components/MacroBar";
 import { MealSection } from "@/components/MealSection";
