@@ -57,6 +57,11 @@ function Dashboard() {
               </Link>
             </Button>
             <Button asChild variant="ghost" size="sm">
+              <Link to="/explain">
+                <Info className="mr-1.5 h-4 w-4" /> Explain
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
               <Link to="/personas">
                 <Beaker className="mr-1.5 h-4 w-4" /> Personas
               </Link>
