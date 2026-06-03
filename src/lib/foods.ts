@@ -115,10 +115,31 @@ function hasAllergen(food: FoodItem, a: Allergen): boolean {
   return false;
 }
 
+// Tag-based meat detection so diet filters can't be bypassed by mislabelled USDA items.
+const MEAT_TAGS = ["beef", "pork", "poultry"] as const;
+const SEAFOOD_TAGS = ["fish", "seafood"] as const;
+
+function isBabyFood(food: FoodItem): boolean {
+  if (food.category === "Baby Foods") return true;
+  return /\b(babyfood|baby food|infant formula|infant cereal)\b/i.test(food.name);
+}
+
 export function isFoodAllowed(food: FoodItem, f: HealthFilters): boolean {
+  // Always exclude baby foods / infant formula from adult meal plans.
+  if (isBabyFood(food)) return false;
   if (!ALLOWS_DIET[f.diet].includes(food.diet)) return false;
+  // Reinforce diet via tags so a mislabelled item (e.g. diet:"vegan" with tags:["beef"])
+  // can never slip into a vegetarian/vegan/pescatarian plan.
+  if (f.diet === "vegan" || f.diet === "vegetarian") {
+    if (MEAT_TAGS.some((t) => food.tags.includes(t))) return false;
+    if (SEAFOOD_TAGS.some((t) => food.tags.includes(t))) return false;
+  }
+  if (f.diet === "pescatarian") {
+    if (MEAT_TAGS.some((t) => food.tags.includes(t))) return false;
+  }
   if (f.allergens.some((a) => hasAllergen(food, a))) return false;
   if (f.excludeTags?.some((t) => food.tags.includes(t))) return false;
+
 
   // ---- clinical filters ------------------------------------------------
   if (f.conditions.includes("hypertension")) {
