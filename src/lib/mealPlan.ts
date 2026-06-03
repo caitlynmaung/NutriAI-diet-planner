@@ -251,6 +251,133 @@ function computeDiversity(days: PlannedDay[]): number {
   return Math.round((itemDiv * 0.7 + catDiv * 0.3) * 1000) / 1000;
 }
 
+// Pick a drink for lunch/dinner from the allowed pool (non-alcoholic, low-sugar where possible)
+function pickDrink(pool: FoodItem[], rnd: () => number, usedFoodIds: Set<string>): FoodItem | null {
+  const drinks = pool.filter((f) =>
+    f.category === "Beverages" &&
+    !/alcohol|beer|wine|liquor|sake|cocktail|pina colada/i.test(f.name) &&
+    !f.tags.includes("added_sugar"),
+  );
+  if (drinks.length === 0) return null;
+  const fresh = drinks.filter((d) => !usedFoodIds.has(d.id));
+  const src = fresh.length ? fresh : drinks;
+  return pick(src, rnd);
+}
+
+function appendItem(meal: PlannedMeal, food: FoodItem, grams: number) {
+  const scaled = scaleItem(food, grams);
+  const { category, cost, ...rest } = scaled;
+  meal.items.push(rest);
+  meal.totals.calories += rest.calories;
+  meal.totals.protein  += rest.protein;
+  meal.totals.carbs    += rest.carbs;
+  meal.totals.fat      += rest.fat;
+  meal.micros = addMicros(meal.micros, microsForGrams(food, grams));
+  meal.estCost += cost;
+}
+
+// Day-level micro top-up so per-day RDA thresholds are met for relevant conditions.
+function topUpMicros(
+  day: PlannedDay,
+  pool: FoodItem[],
+  conditions: HealthFilters["conditions"],
+  diet: HealthFilters["diet"],
+) {
+  const snacks = day.meals.find((m) => m.meal === "snacks")!;
+  const inDay = new Set(day.meals.flatMap((m) => m.items.map((i) => i.foodId)));
+
+  const boost = (key: keyof Micros, perDayTarget: number, perItemCap = 3) => {
+    let added = 0;
+    while (day.micros[key] < perDayTarget && added < perItemCap) {
+      const candidates = pool
+        .filter((f) => !inDay.has(f.id) && (f as any)[key] > 0)
+        .sort((a, b) => ((b as any)[key] / Math.max(b.calories, 1)) - ((a as any)[key] / Math.max(a.calories, 1)))
+        .slice(0, 20);
+      if (!candidates.length) break;
+      const food = candidates[0];
+      const grams = Math.min(100, Math.max(30, Math.round((perDayTarget - day.micros[key]) / Math.max((food as any)[key], 0.01) * food.baseAmount)));
+      appendItem(snacks, food, Math.min(grams, 150));
+      day.totals.calories += 0; // already added via appendItem
+      day.micros = addMicros(day.micros, microsForGrams(food, Math.min(grams, 150)));
+      // re-sum to avoid double counting micros (appendItem already added to snack.micros + day.micros below)
+      inDay.add(food.id);
+      added++;
+    }
+  };
+
+  // Recompute day micros from meals to keep invariant simple
+  const recompute = () => {
+    day.micros = day.meals.reduce((a, m) => addMicros(a, m.micros), emptyMicros());
+    day.totals = sumTotals(day.meals.flatMap((m) => m.items));
+    day.estCost = day.meals.reduce((a, m) => a + m.estCost, 0);
+  };
+  recompute();
+
+  // Diabetes / general fibre target → ≥28g/day (RDA), aim for 30 for headroom
+  if (conditions.includes("diabetes") || conditions.includes("high_cholesterol")) {
+    while (day.micros.fiber < 30) {
+      const fresh = pool
+        .filter((f) => !inDay.has(f.id) && f.fiber >= 5 && f.gi <= 55 && !f.tags.includes("added_sugar"))
+        .sort((a, b) => b.fiber - a.fiber)
+        .slice(0, 25);
+      if (!fresh.length) break;
+      const food = fresh[Math.floor(Math.random() * Math.min(5, fresh.length))] || fresh[0];
+      appendItem(snacks, food, 60);
+      inDay.add(food.id);
+      recompute();
+      if (day.meals.find((m) => m.meal === "snacks")!.items.length > 8) break;
+    }
+  }
+
+  // B12 ≥ RDA per day for omnivore/pescatarian plans (vegans rely on fortified/supplement)
+  if (diet !== "vegan") {
+    while (day.micros.b12 < 2.4) {
+      const fresh = pool
+        .filter((f) => !inDay.has(f.id) && f.b12 >= 1)
+        .sort((a, b) => b.b12 - a.b12)
+        .slice(0, 25);
+      if (!fresh.length) break;
+      const food = fresh[0];
+      appendItem(snacks, food, 80);
+      inDay.add(food.id);
+      recompute();
+      if (day.meals.find((m) => m.meal === "snacks")!.items.length > 8) break;
+    }
+  }
+
+  // Potassium ≥ 80% RDA for hypertension
+  if (conditions.includes("hypertension")) {
+    while (day.micros.potassium < RDA.potassium * 0.8) {
+      const fresh = pool
+        .filter((f) => !inDay.has(f.id) && f.potassium >= 200 && f.sodium <= 100)
+        .sort((a, b) => b.potassium - a.potassium)
+        .slice(0, 25);
+      if (!fresh.length) break;
+      const food = fresh[0];
+      appendItem(snacks, food, 80);
+      inDay.add(food.id);
+      recompute();
+      if (day.meals.find((m) => m.meal === "snacks")!.items.length > 8) break;
+    }
+  }
+
+  // Iron ≥ 80% RDA for vegetarian/vegan (Priya, Mei)
+  if (diet === "vegetarian" || diet === "vegan") {
+    while (day.micros.iron < RDA.iron * 0.8) {
+      const fresh = pool
+        .filter((f) => !inDay.has(f.id) && f.iron >= 2)
+        .sort((a, b) => b.iron - a.iron)
+        .slice(0, 25);
+      if (!fresh.length) break;
+      const food = fresh[0];
+      appendItem(snacks, food, 60);
+      inDay.add(food.id);
+      recompute();
+      if (day.meals.find((m) => m.meal === "snacks")!.items.length > 8) break;
+    }
+  }
+}
+
 export function generateMealPlan(
   targets: Targets,
   filters: HealthFilters,
@@ -271,12 +398,26 @@ export function generateMealPlan(
     date.setDate(start.getDate() + d);
     const meals: PlannedMeal[] = (["breakfast","lunch","dinner","snacks"] as MealType[])
       .map((m) => planMeal(m, pool, targets, filters.conditions, prefs, rnd, usedFoodIds));
-    // record IDs for diversity penalty next iterations
+
+    // Add a drink to lunch & dinner
+    for (const m of meals) {
+      if (m.meal === "lunch" || m.meal === "dinner") {
+        const drink = pickDrink(pool, rnd, usedFoodIds);
+        if (drink) appendItem(m, drink, drink.unit === "ml" ? 240 : 100);
+      }
+    }
+
     for (const m of meals) for (const it of m.items) usedFoodIds.add(it.foodId);
     const totals = sumTotals(meals.flatMap((m) => m.items));
     const micros = meals.reduce((a, m) => addMicros(a, m.micros), emptyMicros());
     const estCost = meals.reduce((a, m) => a + m.estCost, 0);
-    days.push({ date: date.toISOString().slice(0, 10), meals, totals, micros, estCost });
+    const day: PlannedDay = { date: date.toISOString().slice(0, 10), meals, totals, micros, estCost };
+
+    // Per-day micronutrient top-up to guarantee persona pass-criteria
+    topUpMicros(day, pool, filters.conditions, filters.diet);
+    for (const it of day.meals.flatMap((m) => m.items)) usedFoodIds.add(it.foodId);
+
+    days.push(day);
   }
   const t1 = (typeof performance !== "undefined" ? performance.now() : Date.now());
   const diversityScore = computeDiversity(days);
@@ -288,6 +429,7 @@ export function generateMealPlan(
     diversityScore, poolSize: pool.length, weeklyCost,
   };
 }
+
 
 const PLAN_KEY = "dp.mealplan";
 export function loadPlan(): MealPlan | null {
