@@ -304,6 +304,14 @@ function appendItem(meal: PlannedMeal, food: FoodItem, grams: number) {
   meal.estCost += cost;
 }
 
+function isPracticalTopUpFood(food: FoodItem, key: keyof Micros): boolean {
+  if (["Spices and Herbs", "Fats and Oils", "Sweets", "Baby Foods"].includes(food.category)) return false;
+  if (/\b(vinegar|extract|seasoning|spice|salt|sauce)\b/i.test(food.name)) return false;
+  if (key !== "calcium" && key !== "b12" && key !== "vitaminD" && food.category === "Beverages") return false;
+  if ((key === "b12" || key === "vitaminD") && food.diet === "vegan" && !food.tags.includes("fortified")) return false;
+  return true;
+}
+
 // Day-level micro top-up so per-day RDA thresholds are met for relevant conditions.
 function topUpMicros(
   day: PlannedDay,
@@ -340,6 +348,7 @@ function topUpMicros(
       const candidates = pool
         .filter((f) =>
           pickFn(f) > 0 &&
+          isPracticalTopUpFood(f, key) &&
           (!extra || extra(f)),
         )
         .sort((a, b) => pickFn(b) - pickFn(a))
@@ -349,7 +358,8 @@ function topUpMicros(
       if (!food) break;
       const missing = target - day.micros[key];
       const gramsNeeded = (missing / pickFn(food)) * food.baseAmount;
-      const addGrams = Math.min(300, Math.max(grams, Math.ceil(gramsNeeded / 5) * 5));
+      const maxServing = food.unit === "ml" ? 360 : 220;
+      const addGrams = Math.min(maxServing, Math.max(grams, Math.ceil(gramsNeeded / 5) * 5));
       appendItem(snacks, food, addGrams);
       inDay.add(food.id);
       recompute();
@@ -372,11 +382,8 @@ function topUpMicros(
                        (f) => !f.tags.includes("added_sugar") && (!hyper || lowSodium(f)),
                        70);
 
-  // B12: vegans rely on fortified/supplement — skip top-up to avoid animal foods.
-  if (diet !== "vegan") {
-    enforce("b12", rda.b12 * 0.8, (f) => f.b12, extra, 80);
-    enforce("vitaminD", rda.vitaminD * 0.8, (f) => f.vitaminD, extra, 80);
-  }
+  enforce("b12", rda.b12 * 0.8, (f) => f.b12, extra, diet === "vegan" ? 15 : 80);
+  enforce("vitaminD", rda.vitaminD * 0.8, (f) => f.vitaminD, extra, 120);
 }
 
 export function generateMealPlan(
