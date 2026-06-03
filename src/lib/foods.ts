@@ -175,6 +175,89 @@ export function isFoodAllowed(food: FoodItem, f: HealthFilters): boolean {
   return true;
 }
 
+/**
+ * Explain why a food was (or would be) excluded for a given filter set.
+ * Returns ALL matching reasons so the UI can show every flag.
+ * Empty array == food is allowed.
+ */
+export function explainExclusion(food: FoodItem, f: HealthFilters): string[] {
+  const reasons: string[] = [];
+  if (isBabyFood(food)) reasons.push("Baby food / infant formula — not for adult plans");
+  if (!ALLOWS_DIET[f.diet].includes(food.diet))
+    reasons.push(`Diet mismatch — item is ${food.diet}, plan is ${f.diet}`);
+  if ((f.diet === "vegan" || f.diet === "vegetarian") &&
+      MEAT_TAGS.some((t) => food.tags.includes(t)))
+    reasons.push(`Contains meat (${MEAT_TAGS.filter((t) => food.tags.includes(t)).join(", ")}) — excluded for ${f.diet}`);
+  if ((f.diet === "vegan" || f.diet === "vegetarian") &&
+      SEAFOOD_TAGS.some((t) => food.tags.includes(t)))
+    reasons.push(`Contains seafood — excluded for ${f.diet}`);
+  if (f.diet === "pescatarian" && MEAT_TAGS.some((t) => food.tags.includes(t)))
+    reasons.push(`Contains red/poultry meat — excluded for pescatarian`);
+
+  for (const a of f.allergens) {
+    if (hasAllergen(food, a)) {
+      if (a === "dairy" && food.tags.includes("lactose"))
+        reasons.push(`Lactose / dairy allergen flagged`);
+      else if (a === "gluten" && (food.tags.includes("gluten_cc_risk") || food.tags.includes("contains_gluten")))
+        reasons.push(`Cross-contamination risk for gluten (Celiac-safe filter)`);
+      else reasons.push(`Allergen: ${ALLERGEN_LABEL[a]}`);
+    }
+  }
+  for (const t of f.excludeTags ?? []) {
+    if (food.tags.includes(t)) reasons.push(`Excluded tag: "${t}"`);
+  }
+
+  if (f.conditions.includes("hypertension")) {
+    if (food.sodium > 250) reasons.push(`Sodium ${Math.round(food.sodium)} mg/100g > 250 mg DASH cap`);
+    if (food.flags.includes("high_sodium")) reasons.push(`Flagged high-sodium for hypertension`);
+  }
+  if (f.conditions.includes("diabetes")) {
+    if (food.gi > 55) reasons.push(`Glycemic Index ${food.gi} > 55 — high-GI for T2D`);
+    if (food.tags.includes("added_sugar")) reasons.push(`Contains added sugar — excluded for T2D`);
+    if (food.flags.includes("high_glycemic")) reasons.push(`Flagged high-glycemic for T2D`);
+  }
+  if (f.conditions.includes("high_cholesterol")) {
+    if (food.flags.includes("high_fat") && food.fat > 18) reasons.push(`High saturated fat for cholesterol management`);
+    if (food.tags.includes("fried")) reasons.push(`Fried food — excluded for high cholesterol`);
+  }
+  if (f.conditions.includes("ckd")) {
+    if (food.sodium > 250) reasons.push(`Sodium > 250 mg — CKD restriction`);
+    if (food.protein > 28) reasons.push(`Protein > 28 g/100g — CKD restriction`);
+    if (food.potassium > 350) reasons.push(`Potassium > 350 mg — CKD restriction`);
+  }
+  if (f.conditions.includes("ibs")) {
+    if (food.tags.includes("high_fodmap")) reasons.push(`High-FODMAP — excluded for IBS (low-FODMAP plan)`);
+    if (food.tags.includes("lactose")) reasons.push(`Lactose — excluded for IBS`);
+  }
+  if (f.conditions.includes("gerd")) {
+    if (food.tags.includes("gerd_trigger")) reasons.push(`GERD trigger (acidic / spicy / caffeinated)`);
+    if (food.fat > 22) reasons.push(`Fat > 22 g/100g — relaxes LES, GERD trigger`);
+  }
+  return reasons;
+}
+
+/**
+ * Age & sex-tailored RDA (Recommended Dietary Allowance) for the macronutrients
+ * and micronutrients we track. Values follow NIH/ODS adult guidelines.
+ */
+export type RdaProfile = { age: number; sex: "male" | "female" };
+export function rdaFor({ age, sex }: RdaProfile) {
+  const adult = age >= 19;
+  const senior = age >= 51;
+  return {
+    iron:      sex === "female" && age >= 19 && age <= 50 ? 18 : 8,
+    calcium:   senior ? 1200 : 1000,
+    b12:       2.4,
+    vitaminD:  age >= 70 ? 20 : 15,
+    zinc:      sex === "male" ? 11 : 8,
+    potassium: sex === "male" ? 3400 : 2600,
+    magnesium: sex === "male" ? (adult && age <= 30 ? 400 : 420) : (adult && age <= 30 ? 310 : 320),
+    fiber:     sex === "male" ? (senior ? 30 : 38) : (senior ? 21 : 25),
+    sodium:    1500, // adequate intake / DASH upper bound
+  };
+}
+
+
 // Soft clinical penalty (lower = better) -----------------------------------
 export function clinicalPenalty(food: FoodItem, conditions: Condition[]): number {
   let p = 0;
