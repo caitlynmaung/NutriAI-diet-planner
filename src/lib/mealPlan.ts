@@ -353,8 +353,9 @@ function topUpMicros(
         )
         .sort((a, b) => pickFn(b) - pickFn(a))
         .slice(0, 25);
+      const best = candidates[0];
       const fresh = candidates.filter((f) => !inDay.has(f.id));
-      const food = (fresh[0] ?? candidates[0]);
+      const food = fresh[0] && pickFn(fresh[0]) >= pickFn(best) * 0.75 ? fresh[0] : best;
       if (!food) break;
       const missing = target - day.micros[key];
       const gramsNeeded = (missing / pickFn(food)) * food.baseAmount;
