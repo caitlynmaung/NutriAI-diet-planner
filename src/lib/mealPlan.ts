@@ -25,6 +25,7 @@ export type PlannedDay = {
 };
 
 export type MealPlan = {
+  planVersion: number;
   generatedAt: number;
   generationMs: number;
   filters: HealthFilters;
@@ -66,6 +67,7 @@ function rdaForPlan(profile?: RdaProfile): MicroRda {
 const MEAL_SPLIT: Record<MealType, number> = {
   breakfast: 0.25, lunch: 0.35, dinner: 0.3, snacks: 0.1,
 };
+const PLAN_VERSION = 2;
 const MEAL_ITEMS: Record<MealType, [number, number]> = {
   breakfast: [2, 3], lunch: [3, 4], dinner: [3, 4], snacks: [1, 2],
 };
@@ -434,6 +436,7 @@ export function generateMealPlan(
   const diversityScore = computeDiversity(days);
   const weeklyCost = days.reduce((a, d) => a + d.estCost, 0);
   return {
+    planVersion: PLAN_VERSION,
     generatedAt: Date.now(),
     generationMs: Math.round(t1 - t0),
     filters, targets, days,
@@ -445,7 +448,12 @@ export function generateMealPlan(
 const PLAN_KEY = "dp.mealplan";
 export function loadPlan(): MealPlan | null {
   if (typeof window === "undefined") return null;
-  try { const raw = localStorage.getItem(PLAN_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+  try {
+    const raw = localStorage.getItem(PLAN_KEY);
+    if (!raw) return null;
+    const plan = JSON.parse(raw) as Partial<MealPlan>;
+    return plan.planVersion === PLAN_VERSION ? plan as MealPlan : null;
+  } catch { return null; }
 }
 export function savePlan(plan: MealPlan) {
   if (typeof window !== "undefined") localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
