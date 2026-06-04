@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ArrowLeft, Leaf, CheckCircle2, XCircle, PlayCircle, Clock } from "lucide-react";
+import { ArrowLeft, Leaf, CheckCircle2, XCircle, PlayCircle, Clock, Shuffle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMealPlan, type MealPlan } from "@/lib/mealPlan";
-import { FOODS, RDA, type Allergen, type Condition, type DietTag } from "@/lib/foods";
+import { FOODS, RDA, isFoodAllowed, type Allergen, type Condition, type DietTag, type HealthFilters } from "@/lib/foods";
 import type { Targets } from "@/lib/nutrition";
 
 export const Route = createFileRoute("/personas")({
