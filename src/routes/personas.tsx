@@ -514,3 +514,70 @@ function Pill({ icon, label, tone }: { icon: React.ReactNode; label: string; ton
     </span>
   );
 }
+
+function FuzzPanel({ report }: { report: FuzzReport }) {
+  const allPass = report.pass === report.total;
+  const passPct = ((report.pass / Math.max(report.total, 1)) * 100).toFixed(0);
+  const entries = Object.entries(report.byInvariant).sort((a, b) => b[1] - a[1]);
+  return (
+    <section className="mb-8 overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-card)]">
+      <header className={`flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 ${allPass ? "bg-primary-soft/40" : "bg-amber-50/60"}`}>
+        <div>
+          <div className="text-xs uppercase tracking-widest text-muted-foreground">Random persona fuzzer</div>
+          <h3 className="font-display text-lg font-semibold">
+            {report.pass} / {report.total} random profiles pass all invariants ({passPct}%)
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Random diet × allergens × conditions, kcal 1200–3000. Checks exclusions, ±10% calories, ≥80% RDA micros, sodium caps, diversity ≥0.6, &lt;1.5 s gen time.
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="font-display text-2xl font-bold tabular-nums">{report.ms} ms</div>
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">avg {report.avgGenMs} ms / plan</div>
+        </div>
+      </header>
+      <div className="grid gap-0 md:grid-cols-2">
+        <div className="p-5">
+          <div className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Invariant failures</div>
+          {entries.length === 0 ? (
+            <div className="flex items-center gap-2 text-sm text-primary">
+              <CheckCircle2 className="h-4 w-4" /> All invariants held across {report.total} random profiles.
+            </div>
+          ) : (
+            <ul className="space-y-1.5 text-sm">
+              {entries.map(([k, v]) => (
+                <li key={k} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-1.5">
+                  <span className="flex items-center gap-2">
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                    <span className="font-mono text-xs">{k}</span>
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{v}× profiles</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="border-t bg-muted/20 p-5 md:border-l md:border-t-0">
+          <div className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground">Sample failing profiles</div>
+          {report.worst.length === 0 ? (
+            <div className="text-xs text-muted-foreground">None — every random profile produced a valid plan.</div>
+          ) : (
+            <ul className="space-y-2 text-xs">
+              {report.worst.map((w, i) => (
+                <li key={i} className="rounded-md border bg-card px-3 py-2">
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <AlertTriangle className="h-3 w-3 text-amber-600" />
+                    {w.profile.diet} · {w.profile.kcal}kcal
+                    {w.profile.allergens.length > 0 && <> · no {w.profile.allergens.join("/")}</>}
+                    {w.profile.conditions.length > 0 && <> · {w.profile.conditions.join("/")}</>}
+                  </div>
+                  <div className="mt-1 text-muted-foreground">{w.reasons.join(" · ")}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
