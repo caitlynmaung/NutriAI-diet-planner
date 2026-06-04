@@ -187,6 +187,148 @@ const PERSONAS: Persona[] = [
 
 type Result = { persona: Persona; plan: MealPlan; checks: ReturnType<Persona["check"]> };
 
+// -------------------- Random Persona Fuzzer --------------------------------
+type RandomProfile = {
+  diet: DietTag;
+  allergens: Allergen[];
+  conditions: Exclude<Condition, "none">[];
+  kcal: number;
+  seed: number;
+};
+type FuzzFailure = { profile: RandomProfile; reasons: string[] };
+type FuzzReport = {
+  total: number;
+  pass: number;
+  ms: number;
+  avgGenMs: number;
+  worst: FuzzFailure[];
+  byInvariant: Record<string, number>;
+};
+
+const DIETS: DietTag[] = ["vegan", "vegetarian", "pescatarian", "omnivore"];
+const ALLERGENS: Allergen[] = ["dairy", "eggs", "gluten", "soy", "peanuts", "tree_nuts", "shellfish", "fish", "sesame"];
+const CONDS: Exclude<Condition, "none">[] = ["diabetes", "hypertension", "high_cholesterol", "ckd", "ibs", "gerd"];
+
+function mulberry32(a: number) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function randomProfile(rng: () => number, seed: number): RandomProfile {
+  const diet = DIETS[Math.floor(rng() * DIETS.length)];
+  const nA = Math.floor(rng() * 3); // 0-2 allergens
+  const allergens: Allergen[] = [];
+  for (let i = 0; i < nA; i++) {
+    const a = ALLERGENS[Math.floor(rng() * ALLERGENS.length)];
+    if (!allergens.includes(a)) allergens.push(a);
+  }
+  const nC = Math.floor(rng() * 3); // 0-2 conditions
+  const conditions: Exclude<Condition, "none">[] = [];
+  for (let i = 0; i < nC; i++) {
+    const c = CONDS[Math.floor(rng() * CONDS.length)];
+    if (!conditions.includes(c)) conditions.push(c);
+  }
+  const kcal = 1200 + Math.floor(rng() * 1800); // 1200-3000
+  return { diet, allergens, conditions, kcal, seed };
+}
+
+function checkInvariants(profile: RandomProfile, plan: MealPlan): string[] {
+  const reasons: string[] = [];
+  const filters: HealthFilters = {
+    diet: profile.diet,
+    allergens: profile.allergens,
+    conditions: profile.conditions,
+  };
+  // 1. No hard-exclusion leaks
+  const foodById = new Map(FOODS.map((f) => [f.id, f]));
+  let leaks = 0;
+  for (const d of plan.days) for (const m of d.meals) for (const it of m.items) {
+    const f = foodById.get(it.foodId);
+    if (f && !isFoodAllowed(f, filters)) leaks++;
+  }
+  if (leaks > 0) reasons.push(`exclusion leak (${leaks})`);
+
+  // 2. Calorie tolerance ±10%
+  const tgt = profile.kcal;
+  const calBad = plan.days.filter((d) => Math.abs(d.totals.calories - tgt) / tgt > 0.10).length;
+  if (calBad > 0) reasons.push(`calorie ±10% (${calBad}d)`);
+
+  // 3. Micros ≥ 80% RDA
+  const micros: Array<[keyof typeof RDA, keyof MealPlan["days"][number]["micros"]]> = [
+    ["iron", "iron"], ["calcium", "calcium"], ["b12", "b12"],
+    ["zinc", "zinc"], ["potassium", "potassium"], ["magnesium", "magnesium"],
+  ];
+  for (const [k, mk] of micros) {
+    const bad = plan.days.filter((d) => d.micros[mk] / RDA[k] < 0.8).length;
+    if (bad > 0) reasons.push(`${k} <80% (${bad}d)`);
+  }
+  const fibBad = plan.days.filter((d) => d.micros.fiber < 20).length;
+  if (fibBad > 0) reasons.push(`fiber <20g (${fibBad}d)`);
+
+  // 4. Sodium cap (1500 if hypertension/ckd, else 2300)
+  const sodCap = profile.conditions.includes("hypertension") || profile.conditions.includes("ckd") ? 1500 : 2300;
+  const sodBad = plan.days.filter((d) => d.micros.sodium > sodCap).length;
+  if (sodBad > 0) reasons.push(`sodium >${sodCap} (${sodBad}d)`);
+
+  // 5. Diversity
+  if (plan.diversityScore < 0.6) reasons.push(`diversity ${plan.diversityScore}`);
+
+  // 6. Perf
+  if (plan.generationMs > 1500) reasons.push(`slow ${plan.generationMs}ms`);
+
+  return reasons;
+}
+
+function runRandomFuzzer(n: number): FuzzReport {
+  const rng = mulberry32(0xC0FFEE);
+  const t0 = performance.now();
+  let pass = 0;
+  let genSum = 0;
+  const worst: FuzzFailure[] = [];
+  const byInvariant: Record<string, number> = {};
+  for (let i = 0; i < n; i++) {
+    const profile = randomProfile(rng, i);
+    const targets = targetsFromKcal(profile.kcal, profile.conditions);
+    let plan: MealPlan;
+    try {
+      plan = generateMealPlan(targets, {
+        diet: profile.diet,
+        allergens: profile.allergens,
+        conditions: profile.conditions,
+      }, 1000 + i);
+    } catch (e) {
+      worst.push({ profile, reasons: [`crash: ${(e as Error).message}`] });
+      byInvariant["crash"] = (byInvariant["crash"] ?? 0) + 1;
+      continue;
+    }
+    genSum += plan.generationMs;
+    const reasons = checkInvariants(profile, plan);
+    if (reasons.length === 0) {
+      pass++;
+    } else {
+      for (const r of reasons) {
+        const key = r.split(" ")[0];
+        byInvariant[key] = (byInvariant[key] ?? 0) + 1;
+      }
+      if (worst.length < 8) worst.push({ profile, reasons });
+    }
+  }
+  return {
+    total: n,
+    pass,
+    ms: Math.round(performance.now() - t0),
+    avgGenMs: Math.round(genSum / Math.max(n, 1)),
+    worst,
+    byInvariant,
+  };
+}
+
+
 function PersonasPage() {
   const [results, setResults] = useState<Result[] | null>(null);
   const [running, setRunning] = useState(false);
