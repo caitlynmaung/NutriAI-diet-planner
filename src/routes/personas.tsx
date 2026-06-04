@@ -396,11 +396,29 @@ function PersonasPage() {
               generated 7-day plan against the assignment's pass criteria.
             </p>
           </div>
-          <Button size="lg" onClick={run} disabled={running}>
-            <PlayCircle className="mr-2 h-4 w-4" />
-            {running ? "Running…" : results ? "Re-run tests" : "Run all personas"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="lg" onClick={run} disabled={running}>
+              <PlayCircle className="mr-2 h-4 w-4" />
+              {running ? "Running…" : results ? "Re-run tests" : "Run all personas"}
+            </Button>
+            <Button size="lg" variant="outline" onClick={runFuzz} disabled={fuzzRunning}>
+              <Shuffle className="mr-2 h-4 w-4" />
+              {fuzzRunning ? "Fuzzing…" : `Fuzz ${fuzzCount} random personas`}
+            </Button>
+            <select
+              value={fuzzCount}
+              onChange={(e) => setFuzzCount(Number(e.target.value))}
+              disabled={fuzzRunning}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {[25, 50, 100, 200].map((n) => (
+                <option key={n} value={n}>{n} profiles</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {fuzzResult && <FuzzPanel report={fuzzResult} />}
 
         {results && passSummary && (
           <div className="mb-6 flex flex-wrap gap-3">
