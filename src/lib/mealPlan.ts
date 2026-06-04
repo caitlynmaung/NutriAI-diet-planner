@@ -39,14 +39,14 @@ export type MealPlan = {
 type MicroRda = Pick<Micros, "iron" | "calcium" | "b12" | "vitaminD" | "zinc" | "potassium" | "magnesium" | "fiber">;
 
 const CONSERVATIVE_ADULT_RDA: MicroRda = {
-  iron: 18,
-  calcium: 1200,
+  iron: RDA.iron,
+  calcium: RDA.calcium,
   b12: RDA.b12,
-  vitaminD: 20,
-  zinc: 11,
+  vitaminD: RDA.vitaminD,
+  zinc: RDA.zinc,
   potassium: RDA.potassium,
-  magnesium: 420,
-  fiber: 38,
+  magnesium: RDA.magnesium,
+  fiber: RDA.fiber,
 };
 
 function rdaForPlan(profile?: RdaProfile): MicroRda {
@@ -71,6 +71,22 @@ const PLAN_VERSION = 2;
 const MEAL_ITEMS: Record<MealType, [number, number]> = {
   breakfast: [2, 3], lunch: [3, 4], dinner: [3, 4], snacks: [1, 2],
 };
+
+function sodiumCapFor(conditions: HealthFilters["conditions"]): number {
+  return conditions.includes("hypertension") || conditions.includes("ckd") ? 1500 : 2300;
+}
+
+function sodiumCeilingPer100g(conditions: HealthFilters["conditions"]): number {
+  return sodiumCapFor(conditions) === 1500 ? 120 : 180;
+}
+
+function sodiumPer100g(food: FoodItem): number {
+  return (food.sodium / Math.max(food.baseAmount, 1)) * 100;
+}
+
+function isLowSodiumPlanningFood(food: FoodItem, conditions: HealthFilters["conditions"]): boolean {
+  return !food.flags.includes("high_sodium") && sodiumPer100g(food) <= sodiumCeilingPer100g(conditions);
+}
 
 function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -225,7 +241,10 @@ function rankedScore(
     prefBoost += preferenceWeight(f.id, prefs) - 1;
     if (usedFoodIds.has(f.id)) repeats++;
   }
-  return macro + 0.4 * clin - 0.15 * prefBoost + 0.25 * repeats;
+  const mealSodiumTarget = Math.max(1, sodiumCapFor(conditions) * MEAL_SPLIT[cand.meal]);
+  const sodiumLoad = cand.micros.sodium / mealSodiumTarget;
+  const sodiumOver = Math.max(0, sodiumLoad - 1);
+  return macro + 0.4 * clin + 0.2 * sodiumLoad + 5 * sodiumOver * sodiumOver - 0.15 * prefBoost + 0.25 * repeats;
 }
 
 function planMeal(
@@ -246,13 +265,15 @@ function planMeal(
   };
   const mealPool = pool.filter((f) => f.meals.includes(meal));
   const source = mealPool.length >= 8 ? mealPool : pool;
+  const lowSodiumSource = source.filter((f) => isLowSodiumPlanningFood(f, conditions));
+  const practicalSource = lowSodiumSource.length >= 12 ? lowSodiumSource : source;
 
   let best: PlannedMeal | null = null;
   let bestScore = Infinity;
   const tries = 40;
   for (let i = 0; i < tries; i++) {
-    const cand = buildCandidate(source, meal, target.calories, rnd, usedFoodIds);
-    const s = rankedScore(cand, target, source, conditions, prefs, usedFoodIds);
+    const cand = buildCandidate(practicalSource, meal, target.calories, rnd, usedFoodIds);
+    const s = rankedScore(cand, target, practicalSource, conditions, prefs, usedFoodIds);
     if (s < bestScore) { bestScore = s; best = cand; }
   }
   return best!;
@@ -286,6 +307,9 @@ function pickDrink(pool: FoodItem[], rnd: () => number, usedFoodIds: Set<string>
   const drinks = pool.filter((f) =>
     f.category === "Beverages" &&
     !/alcohol|beer|wine|liquor|sake|cocktail|pina colada|coffee|espresso|latte|cappuccino|mocha|americano/i.test(f.name) &&
+    !/powder|concentrate|mix/i.test(f.name) &&
+    f.calories <= 60 &&
+    f.sodium <= 60 &&
     !f.tags.includes("added_sugar"),
   );
   if (drinks.length === 0) return null;
@@ -304,6 +328,78 @@ function appendItem(meal: PlannedMeal, food: FoodItem, grams: number) {
   meal.totals.fat      += rest.fat;
   meal.micros = addMicros(meal.micros, microsForGrams(food, grams));
   meal.estCost += cost;
+}
+
+const FOOD_BY_ID = new Map(FOODS.map((f) => [f.id, f]));
+
+function recomputeMeal(meal: PlannedMeal) {
+  meal.totals = sumTotals(meal.items);
+  meal.micros = emptyMicros();
+  meal.estCost = 0;
+  for (const item of meal.items) {
+    const food = FOOD_BY_ID.get(item.foodId);
+    if (!food) continue;
+    meal.micros = addMicros(meal.micros, microsForGrams(food, item.amount));
+    meal.estCost += food.pricePer100g * (item.amount / 100);
+  }
+}
+
+function recomputeDay(day: PlannedDay) {
+  for (const meal of day.meals) recomputeMeal(meal);
+  day.micros = day.meals.reduce((a, m) => addMicros(a, m.micros), emptyMicros());
+  day.totals = sumTotals(day.meals.flatMap((m) => m.items));
+  day.estCost = day.meals.reduce((a, m) => a + m.estCost, 0);
+}
+
+function setItemAmount(item: LoggedItem, food: FoodItem, amount: number) {
+  const ratio = amount / food.baseAmount;
+  item.amount = Math.round(amount);
+  item.calories = food.calories * ratio;
+  item.protein = food.protein * ratio;
+  item.carbs = food.carbs * ratio;
+  item.fat = food.fat * ratio;
+}
+
+function trimCaloriesToTarget(day: PlannedDay, targetCalories: number, rda: MicroRda) {
+  const upper = targetCalories * 1.15;
+  const thresholds: Partial<Micros> = {
+    iron: rda.iron * 0.8,
+    calcium: rda.calcium * 0.8,
+    b12: rda.b12 * 0.8,
+    vitaminD: rda.vitaminD * 0.8,
+    zinc: rda.zinc * 0.8,
+    potassium: rda.potassium * 0.8,
+    magnesium: rda.magnesium * 0.8,
+    fiber: Math.max(rda.fiber * 0.8, 25),
+  };
+  const keys = Object.keys(thresholds) as Array<keyof Micros>;
+  let guard = 0;
+  while (day.totals.calories > upper && guard < 350) {
+    guard++;
+    const candidates = day.meals
+      .flatMap((meal) => meal.items.map((item) => ({ meal, item, food: FOOD_BY_ID.get(item.foodId) })))
+      .filter((entry): entry is { meal: PlannedMeal; item: LoggedItem; food: FoodItem } => Boolean(entry.food))
+      .filter(({ item, food }) => item.amount > (food.unit === "ml" ? 30 : 10))
+      .sort((a, b) => (b.item.calories / b.item.amount) - (a.item.calories / a.item.amount));
+
+    let changed = false;
+    for (const { item, food } of candidates) {
+      const minAmount = food.unit === "ml" ? 30 : 10;
+      const step = Math.min(item.amount - minAmount, 25);
+      if (step <= 0) continue;
+      const newAmount = item.amount - step;
+      const ratioDelta = step / food.baseAmount;
+      const keepsMicros = keys.every((key) => day.micros[key] - microsForGrams(food, step)[key] >= (thresholds[key] ?? 0));
+      if (!keepsMicros) continue;
+      const caloriesAfter = day.totals.calories - food.calories * ratioDelta;
+      if (caloriesAfter < targetCalories * 0.85) continue;
+      setItemAmount(item, food, newAmount);
+      recomputeDay(day);
+      changed = true;
+      break;
+    }
+    if (!changed) break;
+  }
 }
 
 function isPracticalTopUpFood(food: FoodItem, key: keyof Micros): boolean {
@@ -327,12 +423,8 @@ function topUpMicros(
 
 
 
-  // Recompute day micros from meals to keep invariant simple
-  const recompute = () => {
-    day.micros = day.meals.reduce((a, m) => addMicros(a, m.micros), emptyMicros());
-    day.totals = sumTotals(day.meals.flatMap((m) => m.items));
-    day.estCost = day.meals.reduce((a, m) => a + m.estCost, 0);
-  };
+  // Recompute day micros from meals to keep invariant simple.
+  const recompute = () => recomputeDay(day);
   recompute();
 
   // Generic per-day RDA enforcer: guarantees ≥80% RDA for the given micro
@@ -362,17 +454,18 @@ function topUpMicros(
       const missing = target - day.micros[key];
       const gramsNeeded = (missing / pickFn(food)) * food.baseAmount;
       const maxServing = food.unit === "ml" ? 360 : 220;
-      const addGrams = Math.min(maxServing, Math.max(grams, Math.ceil(gramsNeeded / 5) * 5));
+      const minServing = food.unit === "ml" ? 30 : 10;
+      const addGrams = Math.min(maxServing, Math.max(minServing, Math.ceil(gramsNeeded / 5) * 5));
       appendItem(snacks, food, addGrams);
       inDay.add(food.id);
       recompute();
     }
   };
 
-  // Sodium cap for hypertension overrides default extra-filter; keep low-sodium picks.
-  const lowSodium = (f: FoodItem) => f.sodium <= 150;
-  const hyper = conditions.includes("hypertension");
-  const extra = hyper ? lowSodium : undefined;
+  // Keep top-ups low-sodium for every profile; micronutrient repairs should not
+  // create the fuzzer's sodium failures.
+  const lowSodium = (f: FoodItem) => isLowSodiumPlanningFood(f, conditions);
+  const extra = lowSodium;
 
   // Enforce ≥80% RDA every day for all key micros.
   enforce("iron",      rda.iron      * 0.8, (f) => f.iron,      extra, 60);
@@ -382,7 +475,7 @@ function topUpMicros(
   enforce("potassium", rda.potassium * 0.8, (f) => f.potassium, extra, 90);
   enforce("fiber",     Math.max(rda.fiber * 0.8, 25),
                        (f) => f.fiber,
-                       (f) => !f.tags.includes("added_sugar") && (!hyper || lowSodium(f)),
+                       (f) => !f.tags.includes("added_sugar") && lowSodium(f),
                        70);
 
   enforce("b12", rda.b12 * 0.8, (f) => f.b12, extra, diet === "vegan" ? 15 : 80);
@@ -428,6 +521,7 @@ export function generateMealPlan(
 
     // Per-day micronutrient top-up to guarantee persona pass-criteria
     topUpMicros(day, pool, filters.conditions, filters.diet, rda);
+    trimCaloriesToTarget(day, targets.calories, rda);
     for (const it of day.meals.flatMap((m) => m.items)) usedFoodIds.add(it.foodId);
 
     days.push(day);
