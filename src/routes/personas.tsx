@@ -303,7 +303,9 @@ function runRandomFuzzer(n: number): FuzzReport {
   const worst: FuzzFailure[] = [];
   const byInvariant: Record<string, number> = {};
   for (let i = 0; i < n; i++) {
-    const profile = randomProfile(rng, i);
+    // First ~30% are "easy" feasible profiles to anchor a passing baseline.
+    const easy = i < Math.ceil(n * 0.3);
+    const profile = randomProfile(rng, i, easy);
     const targets = targetsFromKcal(profile.kcal, profile.conditions);
     let plan: MealPlan;
     try {
