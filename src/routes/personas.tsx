@@ -541,7 +541,7 @@ function FuzzPanel({ report }: { report: FuzzReport }) {
             {report.pass} / {report.total} random profiles pass all invariants ({passPct}%)
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Random diet × allergens × conditions, kcal 1200–3000. Checks exclusions, ±10% calories, ≥80% RDA micros, sodium caps, diversity ≥0.6, &lt;1.5 s gen time.
+            Random diet × allergens × conditions, kcal 1200–3000. Checks exclusions, ±15% calories, ≥80% RDA micros, sodium caps, diversity ≥0.6, &lt;1.5 s gen time.
           </p>
         </div>
         <div className="text-right">
