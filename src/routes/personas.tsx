@@ -192,6 +192,10 @@ function PersonasPage() {
   const [running, setRunning] = useState(false);
   const [totalMs, setTotalMs] = useState(0);
 
+  const [fuzzCount, setFuzzCount] = useState(50);
+  const [fuzzRunning, setFuzzRunning] = useState(false);
+  const [fuzzResult, setFuzzResult] = useState<FuzzReport | null>(null);
+
   const run = () => {
     setRunning(true);
     setTimeout(() => {
@@ -209,6 +213,14 @@ function PersonasPage() {
       setTotalMs(Math.round(performance.now() - t0));
       setResults(out);
       setRunning(false);
+    }, 0);
+  };
+
+  const runFuzz = () => {
+    setFuzzRunning(true);
+    setTimeout(() => {
+      setFuzzResult(runRandomFuzzer(fuzzCount));
+      setFuzzRunning(false);
     }, 0);
   };
 
