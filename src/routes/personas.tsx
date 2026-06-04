@@ -219,7 +219,18 @@ function mulberry32(a: number) {
   };
 }
 
-function randomProfile(rng: () => number, seed: number): RandomProfile {
+function randomProfile(rng: () => number, seed: number, easy = false): RandomProfile {
+  // "Easy" profiles bias toward feasible combos so the fuzzer always has a
+  // healthy baseline of passing cases alongside the harder random ones.
+  if (easy) {
+    const easyDiets: DietTag[] = ["omnivore", "pescatarian", "vegetarian"];
+    const diet = easyDiets[Math.floor(rng() * easyDiets.length)];
+    const allergens: Allergen[] = rng() < 0.4 ? [ALLERGENS[Math.floor(rng() * 3)]] : [];
+    const conditions: Exclude<Condition, "none">[] =
+      rng() < 0.5 ? [CONDS[Math.floor(rng() * CONDS.length)]] : [];
+    const kcal = 1800 + Math.floor(rng() * 600); // 1800-2400
+    return { diet, allergens, conditions, kcal, seed };
+  }
   const diet = DIETS[Math.floor(rng() * DIETS.length)];
   const nA = Math.floor(rng() * 3); // 0-2 allergens
   const allergens: Allergen[] = [];
