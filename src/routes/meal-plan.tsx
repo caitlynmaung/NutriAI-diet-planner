@@ -167,7 +167,7 @@ function MealPlanPage() {
               })}
             </div>
 
-            <DayView day={plan.days[activeDay]} />
+            <DayView day={plan.days[activeDay]} rda={rdaTargetsFor(profile)} />
           </>
         )}
       </main>
@@ -175,25 +175,47 @@ function MealPlanPage() {
   );
 }
 
-function DayView({ day }: { day: MealPlan["days"][number] }) {
+const MEAL_SHARE: Record<MealType, number> = { breakfast: 0.25, lunch: 0.35, dinner: 0.3, snacks: 0.1 };
+
+function DayView({ day, rda }: { day: MealPlan["days"][number]; rda: ReturnType<typeof rdaTargetsFor> }) {
   const { addItem } = useDayLog(todayKey());
   const today = todayKey();
   const isToday = day.date === today;
+  const dayGaps = gapKeys(day.micros, rda);
 
   return (
     <div>
-      <div className="mb-5 grid grid-cols-4 gap-3 rounded-2xl border bg-card p-4 text-center shadow-[var(--shadow-card)] sm:gap-6">
+      <div className="mb-5 grid grid-cols-5 gap-3 rounded-2xl border bg-card p-4 text-center shadow-[var(--shadow-card)] sm:gap-6">
         <Stat label="Calories" value={`${Math.round(day.totals.calories)}`} unit="kcal" />
         <Stat label="Protein"  value={`${Math.round(day.totals.protein)}`}  unit="g" />
         <Stat label="Carbs"    value={`${Math.round(day.totals.carbs)}`}    unit="g" />
         <Stat label="Fat"      value={`${Math.round(day.totals.fat)}`}      unit="g" />
+        <Stat label="Fibre"    value={`${Math.round(day.micros.fiber)}`}    unit="g" />
       </div>
+
+      <section className="mb-5 rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className="font-display text-base font-semibold">Daily micronutrients vs RDA</h3>
+            <p className="text-xs text-muted-foreground">Flagged when intake is below 80% of RDA.</p>
+          </div>
+          {dayGaps.length > 0 ? (
+            <span className="rounded-full border border-destructive/40 bg-destructive/5 px-3 py-1 text-xs font-medium text-destructive">
+              {dayGaps.length} gap{dayGaps.length > 1 ? "s" : ""}: {dayGaps.map((g) => NUTRIENT_META[g].label).join(", ")}
+            </span>
+          ) : (
+            <span className="rounded-full border bg-primary-soft px-3 py-1 text-xs font-medium text-primary">✓ On target</span>
+          )}
+        </div>
+        <MicroGrid values={day.micros} rda={rda} />
+      </section>
 
       <div className="grid gap-4 md:grid-cols-2">
         {day.meals.map((m) => (
           <PlannedMealCard
             key={m.meal}
             meal={m}
+            rda={rda}
             onLog={isToday ? (i) => addItem(m.meal, { ...i, id: crypto.randomUUID() }) : undefined}
           />
         ))}
@@ -204,12 +226,15 @@ function DayView({ day }: { day: MealPlan["days"][number] }) {
 
 function PlannedMealCard({
   meal,
+  rda,
   onLog,
 }: {
   meal: PlannedMeal;
+  rda: ReturnType<typeof rdaTargetsFor>;
   onLog?: (item: PlannedMeal["items"][number]) => void;
 }) {
   const meta = MEAL_META[meal.meal];
+  const share = MEAL_SHARE[meal.meal];
   return (
     <section className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
       <header className="mb-4 flex items-center justify-between">
@@ -218,7 +243,7 @@ function PlannedMealCard({
           <div>
             <h3 className="font-display text-base font-semibold">{meta.title}</h3>
             <p className="text-xs text-muted-foreground">
-              {Math.round(meal.totals.calories)} kcal · P{Math.round(meal.totals.protein)} · C{Math.round(meal.totals.carbs)} · F{Math.round(meal.totals.fat)}
+              {Math.round(meal.totals.calories)} kcal · P{Math.round(meal.totals.protein)} · C{Math.round(meal.totals.carbs)} · F{Math.round(meal.totals.fat)} · Fibre {meal.micros.fiber.toFixed(0)}g
             </p>
           </div>
         </div>
@@ -248,6 +273,9 @@ function PlannedMealCard({
           </li>
         ))}
       </ul>
+      <div className="mt-4 border-t pt-4">
+        <MicroGrid values={meal.micros} rda={rda} share={share} compact />
+      </div>
     </section>
   );
 }
