@@ -117,7 +117,7 @@ function Dashboard() {
             <MacroBar
               label="Fat"
               value={totals.fat}
-              target={totals.fat > 0 ? targets.fat : targets.fat}
+              target={targets.fat}
               colorVar="var(--color-fat)"
             />
             <MacroBar
