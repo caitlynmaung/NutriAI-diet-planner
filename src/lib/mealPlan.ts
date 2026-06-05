@@ -385,18 +385,21 @@ function trimCaloriesToTarget(day: PlannedDay, targetCalories: number, rda: Micr
     let changed = false;
     for (const { item, food } of candidates) {
       const minAmount = food.unit === "ml" ? 30 : 10;
-      const step = Math.min(item.amount - minAmount, 25);
-      if (step <= 0) continue;
-      const newAmount = item.amount - step;
-      const ratioDelta = step / food.baseAmount;
-      const keepsMicros = keys.every((key) => day.micros[key] - microsForGrams(food, step)[key] >= (thresholds[key] ?? 0));
-      if (!keepsMicros) continue;
-      const caloriesAfter = day.totals.calories - food.calories * ratioDelta;
-      if (caloriesAfter < targetCalories * 0.85) continue;
-      setItemAmount(item, food, newAmount);
-      recomputeDay(day);
-      changed = true;
-      break;
+      const maxStep = Math.min(item.amount - minAmount, 25);
+      for (const step of [maxStep, 20, 15, 10, 5].filter((s) => s > 0 && s <= maxStep)) {
+        const newAmount = item.amount - step;
+        const ratioDelta = step / food.baseAmount;
+        const removedMicros = microsForGrams(food, step);
+        const keepsMicros = keys.every((key) => day.micros[key] - removedMicros[key] >= (thresholds[key] ?? 0));
+        if (!keepsMicros) continue;
+        const caloriesAfter = day.totals.calories - food.calories * ratioDelta;
+        if (caloriesAfter < targetCalories * 0.85) continue;
+        setItemAmount(item, food, newAmount);
+        recomputeDay(day);
+        changed = true;
+        break;
+      }
+      if (changed) break;
     }
     if (!changed) break;
   }
@@ -404,7 +407,7 @@ function trimCaloriesToTarget(day: PlannedDay, targetCalories: number, rda: Micr
 
 function isPracticalTopUpFood(food: FoodItem, key: keyof Micros): boolean {
   if (["Spices and Herbs", "Fats and Oils", "Sweets", "Baby Foods"].includes(food.category)) return false;
-  if (/\b(vinegar|extract|seasoning|spice|salt|sauce)\b/i.test(food.name)) return false;
+  if (/\b(vinegar|extract|seasoning|spice|salt|sauce|whipped topping|candy|candies)\b/i.test(food.name)) return false;
   if (key !== "calcium" && key !== "b12" && key !== "vitaminD" && food.category === "Beverages") return false;
   if ((key === "b12" || key === "vitaminD") && food.diet === "vegan" && !food.tags.includes("fortified")) return false;
   return true;
