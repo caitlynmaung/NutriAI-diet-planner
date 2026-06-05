@@ -5,7 +5,9 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { MacroBar } from "@/components/MacroBar";
 import { MealSection } from "@/components/MealSection";
 import { Button } from "@/components/ui/button";
-import { sumDay, todayKey, useDayLog, useProfile } from "@/lib/storage";
+import { todayKey, useDayLog, useProfile } from "@/lib/storage";
+import { MicroGrid } from "@/components/MicroGrid";
+import { gapKeys, nutrientTotals, rdaTargetsFor, NUTRIENT_META } from "@/lib/micros";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -30,7 +32,10 @@ function Dashboard() {
     return <div className="grid min-h-screen place-items-center text-muted-foreground">Loading…</div>;
   }
 
-  const totals = sumDay(log);
+  const totals = nutrientTotals([...log.breakfast, ...log.lunch, ...log.dinner, ...log.snacks]);
+  const rda = rdaTargetsFor(profile);
+  const gaps = gapKeys(totals, rda);
+  const MEAL_SHARE = { breakfast: 0.25, lunch: 0.35, dinner: 0.3, snacks: 0.1 } as const;
   const dateLabel = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -112,17 +117,44 @@ function Dashboard() {
             <MacroBar
               label="Fat"
               value={totals.fat}
-              target={targets.fat}
+              target={totals.fat > 0 ? targets.fat : targets.fat}
               colorVar="var(--color-fat)"
+            />
+            <MacroBar
+              label="Fibre"
+              value={totals.fiber}
+              target={rda.fiber}
+              colorVar="var(--color-carbs)"
             />
           </div>
         </section>
 
+        <section className="mt-6 rounded-3xl border bg-card p-6 shadow-[var(--shadow-card)]">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="font-display text-lg font-semibold">Today's micronutrients</h2>
+              <p className="text-xs text-muted-foreground">
+                Tracked vs RDA for {profile.sex}, age {profile.age}. Items below 80% of RDA are flagged.
+              </p>
+            </div>
+            {gaps.length > 0 ? (
+              <span className="rounded-full border border-destructive/40 bg-destructive/5 px-3 py-1 text-xs font-medium text-destructive">
+                {gaps.length} gap{gaps.length > 1 ? "s" : ""}: {gaps.map((g) => NUTRIENT_META[g].label).join(", ")}
+              </span>
+            ) : (
+              <span className="rounded-full border bg-primary-soft px-3 py-1 text-xs font-medium text-primary">
+                ✓ On target
+              </span>
+            )}
+          </div>
+          <MicroGrid values={totals} rda={rda} />
+        </section>
+
         <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <MealSection meal="breakfast" title="Breakfast" icon="🌅" items={log.breakfast} onAdd={addItem} onRemove={removeItem} />
-          <MealSection meal="lunch" title="Lunch" icon="🥗" items={log.lunch} onAdd={addItem} onRemove={removeItem} />
-          <MealSection meal="dinner" title="Dinner" icon="🍽️" items={log.dinner} onAdd={addItem} onRemove={removeItem} />
-          <MealSection meal="snacks" title="Snacks" icon="🍎" items={log.snacks} onAdd={addItem} onRemove={removeItem} />
+          <MealSection meal="breakfast" title="Breakfast" icon="🌅" items={log.breakfast} onAdd={addItem} onRemove={removeItem} rda={rda} share={MEAL_SHARE.breakfast} />
+          <MealSection meal="lunch" title="Lunch" icon="🥗" items={log.lunch} onAdd={addItem} onRemove={removeItem} rda={rda} share={MEAL_SHARE.lunch} />
+          <MealSection meal="dinner" title="Dinner" icon="🍽️" items={log.dinner} onAdd={addItem} onRemove={removeItem} rda={rda} share={MEAL_SHARE.dinner} />
+          <MealSection meal="snacks" title="Snacks" icon="🍎" items={log.snacks} onAdd={addItem} onRemove={removeItem} rda={rda} share={MEAL_SHARE.snacks} />
         </div>
       </main>
     </div>
