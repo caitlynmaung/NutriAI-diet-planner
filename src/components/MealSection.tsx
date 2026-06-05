@@ -1,6 +1,8 @@
 import { Trash2 } from "lucide-react";
 import { AddFoodDialog } from "./AddFoodDialog";
-import { sumMacros, type LoggedItem, type MealType } from "@/lib/storage";
+import { MicroGrid } from "./MicroGrid";
+import { type LoggedItem, type MealType } from "@/lib/storage";
+import { nutrientTotals, type RdaTargets } from "@/lib/micros";
 
 type Props = {
   meal: MealType;
@@ -9,10 +11,13 @@ type Props = {
   items: LoggedItem[];
   onAdd: (meal: MealType, item: LoggedItem) => void;
   onRemove: (meal: MealType, id: string) => void;
+  rda?: RdaTargets;
+  /** Fraction of daily RDA this meal should cover (e.g. 0.25 for breakfast). */
+  share?: number;
 };
 
-export function MealSection({ meal, title, icon, items, onAdd, onRemove }: Props) {
-  const totals = sumMacros(items);
+export function MealSection({ meal, title, icon, items, onAdd, onRemove, rda, share = 0.25 }: Props) {
+  const totals = nutrientTotals(items);
   return (
     <section className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
       <header className="mb-4 flex items-center justify-between">
@@ -23,7 +28,7 @@ export function MealSection({ meal, title, icon, items, onAdd, onRemove }: Props
           <div>
             <h3 className="font-display text-base font-semibold">{title}</h3>
             <p className="text-xs text-muted-foreground">
-              {Math.round(totals.calories)} kcal · P{Math.round(totals.protein)} · C{Math.round(totals.carbs)} · F{Math.round(totals.fat)}
+              {Math.round(totals.calories)} kcal · P{Math.round(totals.protein)} · C{Math.round(totals.carbs)} · F{Math.round(totals.fat)} · Fibre {totals.fiber.toFixed(0)}g
             </p>
           </div>
         </div>
@@ -35,25 +40,32 @@ export function MealSection({ meal, title, icon, items, onAdd, onRemove }: Props
           No items logged yet.
         </p>
       ) : (
-        <ul className="divide-y">
-          {items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between py-2.5">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{item.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {item.amount}{item.unit === "piece" ? " pc" : item.unit} · {Math.round(item.calories)} kcal
+        <>
+          <ul className="divide-y">
+            {items.map((item) => (
+              <li key={item.id} className="flex items-center justify-between py-2.5">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{item.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.amount}{item.unit === "piece" ? " pc" : item.unit} · {Math.round(item.calories)} kcal
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={() => onRemove(meal, item.id)}
-                className="ml-3 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                aria-label="Remove"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
+                <button
+                  onClick={() => onRemove(meal, item.id)}
+                  className="ml-3 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                  aria-label="Remove"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {rda && (
+            <div className="mt-4 border-t pt-4">
+              <MicroGrid values={totals} rda={rda} share={share} compact />
+            </div>
+          )}
+        </>
       )}
     </section>
   );
