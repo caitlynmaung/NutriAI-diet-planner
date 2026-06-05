@@ -221,18 +221,7 @@ function mulberry32(a: number) {
   };
 }
 
-function randomProfile(rng: () => number, seed: number, easy = false): RandomProfile {
-  // "Easy" profiles bias toward feasible combos so the fuzzer always has a
-  // healthy baseline of passing cases alongside the harder random ones.
-  if (easy) {
-    const easyDiets: DietTag[] = ["omnivore", "pescatarian", "vegetarian"];
-    const diet = easyDiets[Math.floor(rng() * easyDiets.length)];
-    const allergens: Allergen[] = rng() < 0.4 ? [ALLERGENS[Math.floor(rng() * 3)]] : [];
-    const conditions: Exclude<Condition, "none">[] =
-      rng() < 0.5 ? [CONDS[Math.floor(rng() * CONDS.length)]] : [];
-    const kcal = 1800 + Math.floor(rng() * 600); // 1800-2400
-    return { diet, allergens, conditions, kcal, seed };
-  }
+function randomProfile(rng: () => number, seed: number): RandomProfile {
   const diet = DIETS[Math.floor(rng() * DIETS.length)];
   const nA = Math.floor(rng() * 3); // 0-2 allergens
   const allergens: Allergen[] = [];
@@ -551,7 +540,7 @@ function FuzzPanel({ report }: { report: FuzzReport }) {
             {report.pass} / {report.total} random profiles pass all invariants ({passPct}%)
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Random diet × allergens × conditions, kcal 1200–3000. Checks exclusions, ±15% calories, ≥80% RDA micros, sodium caps, diversity ≥0.6, &lt;1.5 s gen time.
+            Fully random diet × allergens × conditions, kcal 1200–3000. Retries plan seed/target variants, then checks exclusions, ±15% calories, ≥80% RDA micros, sodium caps, diversity ≥0.6, &lt;1.5 s gen time.
           </p>
         </div>
         <div className="text-right">
