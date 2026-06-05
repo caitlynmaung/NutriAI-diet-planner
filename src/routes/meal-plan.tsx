@@ -12,6 +12,8 @@ import {
 } from "@/lib/mealPlan";
 import { dislike, like } from "@/lib/preferences";
 import type { MealType } from "@/lib/storage";
+import { MicroGrid } from "@/components/MicroGrid";
+import { NUTRIENT_META, gapKeys, rdaTargetsFor } from "@/lib/micros";
 
 export const Route = createFileRoute("/meal-plan")({
   head: () => ({
